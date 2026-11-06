@@ -10,6 +10,7 @@ const s3 = new S3Client({
 });
 const PIN = Bun.env.TRAINER_PIN || "DG4D-2026";
 
+const VENDOR = new Set(["jspdf.umd.min.js", "jspdf.plugin.autotable.min.js"]);
 const PAGE = await Bun.file(import.meta.dir + "/index.html").text();
 async function page(): Promise<string> { return PAGE; }
 
@@ -78,6 +79,16 @@ Bun.serve({
     }
 
     if (path === "/health") return json({ ok: true });
+
+    if (req.method === "GET" && path.startsWith("/vendor/")) {
+      const name = path.slice("/vendor/".length);
+      if (VENDOR.has(name)) {
+        return new Response(Bun.file(import.meta.dir + "/vendor/" + name), {
+          headers: { "content-type": "application/javascript; charset=utf-8", "cache-control": "public, max-age=86400" },
+        });
+      }
+      return json({ error: "not found" }, 404);
+    }
 
     if (req.method === "GET") {
       return new Response(await page(), {

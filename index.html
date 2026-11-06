@@ -481,7 +481,7 @@ function resultsHTML(){
    <div class="tiles"><div class="tile"><div class="muted">Attempts</div><div class="big">${n}</div></div><div class="tile"><div class="muted">Competent</div><div class="big">${passN}<span class="muted" style="font-size:18px"> / ${n}</span></div></div><div class="tile"><div class="muted">Average score</div><div class="big">${avg}%</div></div><div class="tile"><div class="muted">Unsafe attitude choices</div><div class="big">${A.filter(a=>a.crit&&a.crit.length).length}</div></div></div>
    ${n?`<div class="grid2"><div class="card stack"><h3>Class average by KSA</h3>${hbars([["K","Knowledge"],["S","Skill"],["A","Attitude"]].map(([k,l])=>({label:l,value:ksaAvg(k),color:`var(--${k.toLowerCase()})`})))}</div>
    <div class="card stack"><h3>Hardest items</h3><p class="muted" style="font-size:13px">% of students with full marks. Lowest first.</p>${hbars(diff.map(d=>({label:d.i.id+" · "+d.i.ksa,value:d.v,color:`var(--${d.i.ksa.toLowerCase()})`})),{mark:null})}</div></div>`:`<div class="card"><p class="muted">No results yet. They appear here live when students submit.</p></div>`}
-   <div class="card stack"><h3>Students</h3><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Submitted</th><th class="num">Score</th><th class="num">K</th><th class="num">S</th><th class="num">A</th><th>Result</th><th></th></tr></thead><tbody>${A.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="muted" style="font-size:12px">${esc(a.staff||"")}${a.src==="code"?" · from code":""}</span></td><td style="font-size:13px">${a.submitted?new Date(a.submitted).toLocaleString():""}<br><span class="muted">${fmt(a.used||0)} used</span></td><td class="num"><b>${a.pct}%</b></td><td class="num">${a.ksa.K}/${KSA_MAX.K}</td><td class="num">${a.ksa.S}/${KSA_MAX.S}</td><td class="num">${a.ksa.A}/${KSA_MAX.A}</td><td><span class="pill ${a.competent?"ok":"bad"}">${esc(a.grade)}</span>${a.crit&&a.crit.length?`<br><span style="font-size:12px;color:var(--bad)">${a.crit.map(esc).join("<br>")}</span>`:""}</td><td><details><summary style="font-size:13px">Items</summary><div style="font-size:12px;min-width:220px">${ITEMS.map(i=>`${i.id}: ${(a.items||{})[i.id]??0}/${i.pts}`).join(" · ")}</div></details>${a.src==="db"?`<button class="btn small" data-del="${esc(a.id)}" style="margin-top:6px">Remove</button>`:""}</td></tr>`).join("")||`<tr><td colspan="8" class="muted">No students yet.</td></tr>`}</tbody></table></div></div>
+   <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Students</h3>${WEB&&n?`<button class="btn primary small" id="pdfClass">Download class results (PDF)</button>`:""}</div><div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Submitted</th><th class="num">Score</th><th class="num">K</th><th class="num">S</th><th class="num">A</th><th>Result</th><th></th></tr></thead><tbody>${A.map(a=>`<tr><td><b>${esc(a.name)}</b><br><span class="muted" style="font-size:12px">${esc(a.staff||"")}${a.src==="code"?" · from code":""}</span></td><td style="font-size:13px">${a.submitted?new Date(a.submitted).toLocaleString():""}<br><span class="muted">${fmt(a.used||0)} used</span></td><td class="num"><b>${a.pct}%</b></td><td class="num">${a.ksa.K}/${KSA_MAX.K}</td><td class="num">${a.ksa.S}/${KSA_MAX.S}</td><td class="num">${a.ksa.A}/${KSA_MAX.A}</td><td><span class="pill ${a.competent?"ok":"bad"}">${esc(a.grade)}</span>${a.crit&&a.crit.length?`<br><span style="font-size:12px;color:var(--bad)">${a.crit.map(esc).join("<br>")}</span>`:""}</td><td><details><summary style="font-size:13px">Items</summary><div style="font-size:12px;min-width:220px">${ITEMS.map(i=>`${i.id}: ${(a.items||{})[i.id]??0}/${i.pts}`).join(" · ")}</div></details>${WEB?`<button class="btn small" data-pdf="${esc(a.id)}" style="margin-top:6px">PDF</button> `:""}${a.src==="db"?`<button class="btn small" data-del="${esc(a.id)}" style="margin-top:6px">Remove</button>`:""}</td></tr>`).join("")||`<tr><td colspan="8" class="muted">No students yet.</td></tr>`}</tbody></table></div></div>
    <div class="card stack"><h3>Add a result code</h3><p class="muted" style="font-size:13px">For students who could not send online. Codes you add stay on this device.</p><textarea id="imp" rows="3" style="font-family:var(--f-mono);font-size:12px"></textarea><div class="row"><button class="btn" id="impBtn">Add result</button><span id="impMsg" class="muted"></span></div></div>
   </div>`;
 }
@@ -499,6 +499,7 @@ document.addEventListener("click",async e=>{
     if(WEB){try{const res=await fetch("/api/results",{headers:{"x-pin":v}});if(!res.ok)throw 0;const d=await res.json();trainerPin=v;attempts=(d.results||[]).map(a=>({...a,src:"db"}));trainerUnlocked=true;render()}catch(err){$("#pinMsg").textContent="That PIN is not correct."}return}
     if(TRAINER_PIN&&v===TRAINER_PIN){trainerUnlocked=true;render()}else $("#pinMsg").textContent="That PIN is not correct.";return}
   if(t.dataset.tt){tTab=t.dataset.tt;render();return}
+  if(t.id==="pdfClass"||t.dataset.pdf){const lbl=t.textContent;t.disabled=true;t.textContent="Preparing…";try{t.id==="pdfClass"?await pdfClass():await pdfStudent(t.dataset.pdf);t.textContent=lbl}catch(err){t.textContent="PDF failed, try again"}t.disabled=false;return}
   if(t.id==="impBtn"){try{const r=JSON.parse(decodeURIComponent(escape(atob($("#imp").value.trim()))));if(r.pct==null||!r.ksa)throw 0;r.id="code_"+r.name+"_"+r.submitted;r.src="code";imported.push(r);try{localStorage.setItem("dg41d_imported",JSON.stringify(imported))}catch(e){}$("#tbody").innerHTML=resultsHTML()}catch(err){$("#impMsg").textContent="That code is not valid. Ask the student to copy it again."}return}
   if(t.dataset.del){if(!t.dataset.confirm){t.dataset.confirm="1";t.textContent="Tap to confirm";return}
     if(WEB){try{const res=await fetch("/api/results/"+encodeURIComponent(t.dataset.del),{method:"DELETE",headers:{"x-pin":trainerPin}});if(!res.ok)throw 0;attempts=attempts.filter(a=>a.id!==t.dataset.del);$("#tbody").innerHTML=resultsHTML()}catch(err){t.textContent="Could not remove"}return}
@@ -506,6 +507,78 @@ document.addEventListener("click",async e=>{
 });
 try{imported=JSON.parse(localStorage.getItem("dg41d_imported"))||[]}catch(e){imported=[]}
 
+
+/* ---------- PDF export (public site) ---------- */
+function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector('script[src="'+src+'"]'))return res();const s=document.createElement("script");s.src=src;s.onload=res;s.onerror=()=>rej(new Error("load"));document.head.appendChild(s)})}
+async function pdfLib(){
+  await loadScript("/vendor/jspdf.umd.min.js");
+  await loadScript("/vendor/jspdf.plugin.autotable.min.js");
+  return window.jspdf.jsPDF;
+}
+const NAVY=[22,35,58],ORANGE=[226,98,27],KC=[47,93,159],SC=[22,128,106],AC=[168,65,122],GREY=[91,102,120];
+function pdfHeader(doc,title){
+  const W=doc.internal.pageSize.getWidth();
+  doc.setFillColor(...NAVY);doc.rect(0,0,W,26,"F");
+  doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text(title,14,11);
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("GCAA CAR Part VI Table 4.1.D  |  DG acceptance and processing  |  IATA DGR 64th edition  |  CBTA (KSA)",14,18);
+  doc.setFillColor(...ORANGE);doc.rect(0,26,W,1.5,"F");doc.setTextColor(0,0,0);
+}
+function pdfFooter(doc){
+  const n=doc.getNumberOfPages(),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(...GREY);doc.text("Pass mark 80%, distinction 90%. Any unsafe attitude choice = Not yet competent. Employer assessment per CAR Part VI 4.8.",14,H-8);doc.text("Page "+i+" of "+n,W-14,H-8,{align:"right"})}
+}
+function pdfBars(doc,x,y,rows){ // rows [{label,pct,color,sub}]
+  const bw=110,bh=6;doc.setFontSize(9);
+  rows.forEach((r,i)=>{const yy=y+i*10;doc.setTextColor(0,0,0);doc.text(r.label,x,yy+4.5);
+    doc.setFillColor(232,237,244);doc.rect(x+38,yy,bw,bh,"F");doc.setFillColor(...r.color);doc.rect(x+38,yy,bw*Math.min(100,r.pct)/100,bh,"F");
+    doc.text(r.sub,x+38+bw+3,yy+4.5)});
+  const mx=x+38+bw*0.8;doc.setDrawColor(179,38,30);doc.setLineDashPattern([1,1],0);doc.line(mx,y-2,mx,y+rows.length*10-2);doc.setLineDashPattern([],0);
+  doc.setFontSize(7);doc.setTextColor(179,38,30);doc.text("pass 80%",mx+1,y-3);doc.setTextColor(0,0,0);
+  return y+rows.length*10;
+}
+const fdate=ts=>ts?new Date(ts).toLocaleString():"";
+const safeName=s=>String(s||"student").replace(/[^A-Za-z0-9]+/g,"_").replace(/^_|_$/g,"");
+function studentPage(doc,a){
+  pdfHeader(doc,"CBTA Assessment Result - DG Acceptance Counter");
+  doc.autoTable({startY:33,theme:"plain",styles:{fontSize:10,cellPadding:1.5},columnStyles:{0:{fontStyle:"bold",cellWidth:42}},
+    body:[["Candidate",a.name||""],["Staff ID / job title",a.staff||""],["Submitted",fdate(a.submitted)],["Time used",fmt(a.used||0)+" of 30:00"]]});
+  let y=doc.lastAutoTable.finalY+6;
+  const ok=a.competent;doc.setFillColor(...(ok?[227,243,232]:[251,229,227]));doc.roundedRect(14,y,182,18,2,2,"F");
+  doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(...(ok?[29,122,62]:[179,38,30]));doc.text(a.grade||"",19,y+11.5);
+  doc.setTextColor(0,0,0);doc.setFontSize(12);doc.text(a.total+" / "+TOTAL+" marks  ("+a.pct+"%)",191,y+11.5,{align:"right"});doc.setFont("helvetica","normal");
+  y+=27;doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("Knowledge, Skill, Attitude",14,y);doc.setFont("helvetica","normal");
+  y=pdfBars(doc,14,y+6,[["K","Knowledge",KC],["S","Skill",SC],["A","Attitude",AC]].map(([k,l,c])=>{const p=Math.round(a.ksa[k]/KSA_MAX[k]*100);return {label:l,pct:p,color:c,sub:a.ksa[k]+"/"+KSA_MAX[k]+"  ("+p+"%)"}}));
+  doc.autoTable({startY:y+4,head:[["Stage","Marks","Max","%"]],headStyles:{fillColor:NAVY},styles:{fontSize:9},
+    body:STAGES.map(s=>[s.n+". "+s.title,(a.st||{})[s.n]??0,STAGE_MAX[s.n],Math.round(((a.st||{})[s.n]||0)/STAGE_MAX[s.n]*100)+"%"])});
+  y=doc.lastAutoTable.finalY+6;
+  doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("Attitude",14,y);doc.setFont("helvetica","normal");doc.setFontSize(9);
+  const crit=(a.crit||[]);const lines=crit.length?doc.splitTextToSize("Unsafe choices: "+crit.join(" | "),182):["No unsafe attitude choices."];
+  doc.setTextColor(...(crit.length?[179,38,30]:[29,122,62]));doc.text(lines,14,y+5);doc.setTextColor(0,0,0);
+  doc.autoTable({startY:y+7+lines.length*4,head:[["Item","What is assessed","KSA","CAR VI task","Marks"]],headStyles:{fillColor:NAVY},styles:{fontSize:7.5,cellPadding:1.2},columnStyles:{0:{cellWidth:18},1:{cellWidth:106},2:{cellWidth:10},3:{cellWidth:24},4:{cellWidth:16,halign:"right"}},
+    body:ITEMS.filter(i=>i.pts>0||i.id==="DOC_PEN").map(i=>[i.id,i.what.length>120?i.what.slice(0,117)+"...":i.what,i.ksa,i.task,((a.items||{})[i.id]??0)+" / "+i.pts])});
+  y=doc.lastAutoTable.finalY+8;if(y>255){doc.addPage();y=20}
+  doc.setFontSize(9);[["Assessor name",14],["Assessor signature",80],["Date",150]].forEach(([l,x])=>{doc.line(x,y+8,x+56,y+8);doc.text(l,x,y+12)});
+  doc.line(14,y+22,70,y+22);doc.text("Candidate signature",14,y+26);
+}
+async function pdfStudent(id){
+  const a=allAttempts().find(x=>x.id===id);if(!a)return;
+  const jsPDF=await pdfLib();const doc=new jsPDF({unit:"mm",format:"a4"});
+  studentPage(doc,a);pdfFooter(doc);doc.save("DG_4.1D_Result_"+safeName(a.name)+".pdf");
+}
+async function pdfClass(){
+  const A=allAttempts();const jsPDF=await pdfLib();const doc=new jsPDF({unit:"mm",format:"a4"});
+  pdfHeader(doc,"CBTA Class Results - DG Acceptance Counter");
+  const n=A.length,pass=A.filter(a=>a.competent).length,avg=n?Math.round(A.reduce((s,a)=>s+a.pct,0)/n):0,unsafe=A.filter(a=>a.crit&&a.crit.length).length;
+  doc.autoTable({startY:33,theme:"plain",styles:{fontSize:10,cellPadding:1.5},columnStyles:{0:{fontStyle:"bold",cellWidth:55}},
+    body:[["Report date",new Date().toLocaleString()],["Attempts",String(n)],["Competent",pass+" of "+n],["Average score",avg+"%"],["Students with unsafe attitude choices",String(unsafe)]]});
+  let y=doc.lastAutoTable.finalY+8;doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("Class average by KSA",14,y);doc.setFont("helvetica","normal");
+  y=pdfBars(doc,14,y+6,[["K","Knowledge",KC],["S","Skill",SC],["A","Attitude",AC]].map(([k,l,c])=>{const p=n?Math.round(A.reduce((s,a)=>s+a.ksa[k],0)/n/KSA_MAX[k]*100):0;return {label:l,pct:p,color:c,sub:p+"%"}}));
+  doc.autoTable({startY:y+4,head:[["Name","Staff ID","Submitted","Score","K","S","A","Result"]],headStyles:{fillColor:NAVY},styles:{fontSize:8.5},
+    body:A.map(a=>[a.name||"",a.staff||"",fdate(a.submitted),a.pct+"%",a.ksa.K+"/"+KSA_MAX.K,a.ksa.S+"/"+KSA_MAX.S,a.ksa.A+"/"+KSA_MAX.A,a.grade+((a.crit&&a.crit.length)?" (unsafe choice)":"")]),
+    didParseCell:d=>{if(d.section==="body"&&d.column.index===7){d.cell.styles.textColor=A[d.row.index].competent?[29,122,62]:[179,38,30];d.cell.styles.fontStyle="bold"}}});
+  A.forEach(a=>{doc.addPage();studentPage(doc,a)});
+  pdfFooter(doc);doc.save("DG_4.1D_Class_Results_"+new Date().toISOString().slice(0,10)+".pdf");
+}
 /* ---------- render ---------- */
 function render(){
   document.querySelectorAll("#modeTabs [data-mode]").forEach(b=>b.setAttribute("aria-selected",b.dataset.mode===mode));
