@@ -11,6 +11,7 @@ const s3 = new S3Client({
 const PIN = Bun.env.TRAINER_PIN || "DG4D-2026";
 
 const VENDOR = new Set(["jspdf.umd.min.js", "jspdf.plugin.autotable.min.js"]);
+const CERT = await Bun.file(import.meta.dir + "/certificate.html").text();
 const PAGE = await Bun.file(import.meta.dir + "/index.html").text();
 async function page(): Promise<string> { return PAGE; }
 
@@ -79,6 +80,30 @@ Bun.serve({
     }
 
     if (path === "/health") return json({ ok: true });
+
+    if (req.method === "GET" && path === "/certificate") {
+      const id = String(url.searchParams.get("id") || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+      const all = id ? await readResults() : {};
+      const r = all[id];
+      if (!r || !r.competent) {
+        return new Response(
+          "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Certificate not available</title><body style='font:16px Arial,sans-serif;max-width:560px;margin:60px auto;padding:0 16px;color:#142b56'><h2>Certificate not available</h2><p>A certificate is issued only for a saved result of Competent or Distinction. Please check with your trainer.</p></body>",
+          { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
+        );
+      }
+      const d = new Date(r.submitted || r.received || Date.now());
+      const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
+      const qs = new URLSearchParams({
+        name: String(r.name || ""),
+        date: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        result: String(r.grade || "") + " (" + r.pct + "%)",
+        ref: "ATC-" + ymd.slice(2) + "-" + id.slice(-6).toUpperCase(),
+        assessor: String(r.facil || ""),
+      });
+      if (url.searchParams.get("download") === "1") qs.set("download", "1");
+      const html = CERT.replace("__CERTQS__", () => JSON.stringify(qs.toString()).replace(/</g, "\\u003c"));
+      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+    }
 
     if (req.method === "GET" && path.startsWith("/vendor/")) {
       const name = path.slice("/vendor/".length);
