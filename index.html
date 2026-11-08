@@ -1,9 +1,9 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>DG Acceptance Counter 4.1.D</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body><title>CBTA DG Assessment 4.1.D</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: a cargo acceptance counter. Sticky control strip (timer + stage rail), one task card at a time, forms drawn like real DG paperwork. */
+/* Layout: DG acceptance workplace. Sticky control strip (timer + stage rail), one task card at a time, forms drawn like real DG paperwork. */
 :root{
   --ink:#16233a; --paper:#f3f5f8; --card:#ffffff; --line:#d5dbe4; --muted:#5b6678;
   --accent:#e2621b; --accent-ink:#ffffff; --hatch:#c8102e;
@@ -137,7 +137,7 @@ ul.plane li::before{content:"✈";position:absolute;left:0;top:0;color:var(--acc
 </style>
 
 <div class="strip"><div class="in">
-  <div class="brand">DG Acceptance <b>Counter</b> · 4.1.D</div>
+  <div class="brand">CBTA DG <b>Assessment</b> · 4.1.D</div>
   <div class="tabs" role="tablist" id="modeTabs">
     <button role="tab" data-mode="student" aria-selected="true">Student</button>
     <button role="tab" data-mode="trainer" aria-selected="false">Trainer</button>
@@ -354,7 +354,7 @@ function renderStudent(){
 }
 function introHTML(){
   return `<div class="stack">
-  <section class="hero"><div class="stack"><div class="eyebrow">GCAA CAR Part VI · Table 4.1.D · Function 7.3</div><h1>Your shift at the DG acceptance counter</h1><p style="max-width:60ch">You work for a GCAA dangerous goods certified freight forwarder in the UAE. Shipments are arriving for today's flights. Check labels, documents and packages, handle pressure, and report what you find. Use the IATA DGR 64th edition rules.</p></div>
+  <section class="hero"><div class="stack"><div class="eyebrow">GCAA CAR Part VI · Table 4.1.D · Function 7.3</div><h1>Your shift in dangerous goods acceptance</h1><p style="max-width:60ch">You work for a GCAA dangerous goods certified freight forwarder in the UAE. Shipments are arriving for today's flights. Check labels, documents and packages, handle pressure, and report what you find.</p></div>
   <div class="labelrow">${["c3","o51","c8","cao"].map(k=>`<img src="${IMG[k]}" alt="">`).join("")}</div></section>
   <div class="grid2">
    <div class="card stack instr"><h3>Instructions</h3>
@@ -362,7 +362,7 @@ function introHTML(){
      <li>Read and evaluate each question carefully before you answer. Look closely at every label, document and package picture.</li>
      <li>Complete all 6 stages within the allocated 30 minutes. The timer starts when you press Start and cannot be paused. When time runs out, your answers are submitted automatically.</li>
      <li>Work on your own. Do not use phones, notes, other people or other websites. Misconduct will result in disqualification.</li>
-     <li>Answer as you would at a real acceptance counter, following the IATA DGR (64th edition) and GCAA CAR Part VI.</li>
+     <li>Answer as you would in real dangerous goods acceptance work, following GCAA CAR Part VI.</li>
      <li>Each question shows what it tests: <span class="tag K">K</span> Knowledge, <span class="tag S">S</span> Skill, <span class="tag A">A</span> Attitude.</li>
      <li>Always choose the safe action. An unsafe attitude choice means you cannot pass, whatever your score.</li>
      <li>You can go back to earlier stages. Review your answers prior to submission, because you cannot change them afterwards.</li>
@@ -498,7 +498,7 @@ function renderTrainer(){
     app.innerHTML=`<div class="card stack" style="max-width:460px"><h2>Trainer view</h2><p class="muted">Answers, scoring and student results. ${WEB?"Enter the trainer PIN.":"Open this page as its owner or an editor, or enter the trainer PIN."}</p><div><label class="lbl" for="pin">Trainer PIN</label><input type="password" id="pin"></div><button class="btn primary" id="pinBtn">Open trainer view</button><p id="pinMsg" class="muted"></p></div>`;return;
   }
   const tabs=[["plan","Session plan"],["key","Answer key & KSA map"],["observe","Attitude observation"],["results","Student results"]];
-  app.innerHTML=`<div class="stack"><div><div class="eyebrow">Trainer · CAR Part VI Table 4.1.D · IATA DGR 64th ed.</div><h1>Acceptance counter simulation</h1></div>
+  app.innerHTML=`<div class="stack"><div><div class="eyebrow">Trainer · GCAA CAR Part VI Table 4.1.D</div><h1>CBTA DG assessment simulation</h1></div>
    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-tt="${k}" aria-selected="${tTab===k}">${l}</button>`).join("")}</div>
    <div id="tbody">${trainerBody()}</div></div>`;
   if(tTab==="results")listen();
@@ -566,7 +566,7 @@ function pdfHeader(doc,title){
   const W=doc.internal.pageSize.getWidth();
   doc.setFillColor(...NAVY);doc.rect(0,0,W,26,"F");
   doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text(title,14,11);
-  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("GCAA CAR Part VI Table 4.1.D  |  DG acceptance and processing  |  IATA DGR 64th edition  |  CBTA (KSA)",14,18);
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text("GCAA CAR Part VI Table 4.1.D  |  DG acceptance and processing  |  CBTA (KSA)",14,18);
   doc.setFillColor(...ORANGE);doc.rect(0,26,W,1.5,"F");doc.setTextColor(0,0,0);
 }
 function pdfFooter(doc){
@@ -608,7 +608,7 @@ function coverPage(doc,a){
     didParseCell:d=>{if(d.section!=="body")return;if(d.row.index<4&&bands[d.row.index][1]===b){d.cell.styles.fillColor=[255,243,205]}if(d.row.index===4){d.cell.styles.fillColor=[234,240,222];d.cell.styles.fontStyle="bold"}}});
 }
 function studentPage(doc,a){
-  pdfHeader(doc,"CBTA Assessment Result - DG Acceptance Counter");
+  pdfHeader(doc,"CBTA Assessment Result");
   doc.autoTable({startY:33,theme:"plain",styles:{fontSize:10,cellPadding:1.5},columnStyles:{0:{fontStyle:"bold",cellWidth:42}},
     body:[["Participant",a.name||""],["Job title",a.job||a.staff||""],["Company / Department",a.company||""],["Submitted",fdate(a.submitted)],["Time used",fmt(a.used||0)+" of 30:00"]]});
   let y=doc.lastAutoTable.finalY+6;
@@ -637,7 +637,7 @@ async function pdfStudent(id,rec){
 }
 async function pdfClass(){
   const A=allAttempts();const jsPDF=await pdfLib();const doc=new jsPDF({unit:"mm",format:"a4"});
-  pdfHeader(doc,"CBTA Class Results - DG Acceptance Counter");
+  pdfHeader(doc,"CBTA Class Results");
   const n=A.length,pass=A.filter(a=>a.competent).length,avg=n?Math.round(A.reduce((s,a)=>s+a.pct,0)/n):0,unsafe=A.filter(a=>a.crit&&a.crit.length).length;
   doc.autoTable({startY:33,theme:"plain",styles:{fontSize:10,cellPadding:1.5},columnStyles:{0:{fontStyle:"bold",cellWidth:55}},
     body:[["Report date",new Date().toLocaleString()],["Attempts",String(n)],["Competent",pass+" of "+n],["Average score",avg+"%"],["Students with unsafe attitude choices",String(unsafe)]]});
