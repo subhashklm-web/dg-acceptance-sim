@@ -1,5 +1,6 @@
 import { S3Client } from "bun";
 import { createHmac } from "node:crypto";
+import { mkdirSync, renameSync } from "node:fs";
 
 const s3 = new S3Client({
   accessKeyId: Bun.env.S3_KEY,
@@ -22,17 +23,33 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
   chain = p.catch(() => {});
   return p;
 }
+// Storage: files on the Railway volume (DATA_DIR, e.g. /data); S3 bucket only if no DATA_DIR is set.
+const DATA_DIR = Bun.env.DATA_DIR || "";
+if (DATA_DIR) mkdirSync(DATA_DIR, { recursive: true });
 async function readJSON(name: string, fallback: any) {
   try {
+    if (DATA_DIR) {
+      const f = Bun.file(DATA_DIR + "/" + name);
+      if (!(await f.exists())) return fallback;
+      return JSON.parse(await f.text());
+    }
     const f = s3.file(name);
     if (!(await f.exists())) return fallback;
     return JSON.parse(await f.text());
-  } catch {
+  } catch (e) {
+    console.error("read failed", name, e);
     return fallback;
   }
 }
 async function writeJSON(name: string, data: unknown) {
-  await s3.write(name, JSON.stringify(data), { type: "application/json" });
+  const text = JSON.stringify(data);
+  if (DATA_DIR) {
+    const tmp = DATA_DIR + "/" + name + ".tmp";
+    await Bun.write(tmp, text);
+    renameSync(tmp, DATA_DIR + "/" + name);
+    return;
+  }
+  await s3.write(name, text, { type: "application/json" });
 }
 const readResults = (): Promise<Record<string, any>> => readJSON("results.json", {});
 const writeResults = (r: Record<string, any>) => writeJSON("results.json", r);
@@ -45,6 +62,7 @@ async function getSettings() {
 // Live participants (in memory: only needed while people are taking the assessment)
 const sessions = new Map<string, any>();
 const submitted = new Set<string>(); // ignore late heartbeats after a result arrives
+const admitted = new Map<string, number>(); // participant id -> time the trainer admitted them
 
 const certKey = (id: string) => createHmac("sha256", PIN).update(id).digest("hex").slice(0, 24);
 function certNo(r: any) {
@@ -80,10 +98,11 @@ Bun.serve({
       const s = (v: unknown, n = 120) => String(v ?? "").slice(0, n);
       sessions.set(id, {
         id, name: s(b.name), job: s(b.job), company: s(b.company), facil: s(b.facil),
-        start: Number(b.start) || Date.now(), stage: Number(b.stage) || 1, answered: Number(b.answered) || 0,
+        start: Number(b.start) || 0, stage: Number(b.stage) || 1, answered: Number(b.answered) || 0,
+        waiting: b.phase === "wait" && !admitted.has(id),
         lastSeen: Date.now(),
       });
-      return json({ ok: true });
+      return json({ ok: true, admitted: admitted.has(id), admittedAt: admitted.get(id) || null });
     }
 
     if (path === "/api/results" && req.method === "POST") {
@@ -122,6 +141,17 @@ Bun.serve({
         certKey: r.status === "approved" && r.competent ? certKey(r.id) : undefined,
       }));
       return json({ results, sessions: [...sessions.values()], settings: await getSettings(), now });
+    }
+
+    // trainer admits waiting participants: {ids:[...]} or {all:true}
+    if (path === "/api/admit" && req.method === "POST") {
+      if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
+      let b: any = {};
+      try { b = JSON.parse(await req.text()); } catch {}
+      const ids: string[] = b.all ? [...sessions.values()].filter((v) => v.waiting).map((v) => v.id) : (Array.isArray(b.ids) ? b.ids.map(cleanId) : []);
+      const now = Date.now();
+      for (const id of ids) if (id) { admitted.set(id, now); const v = sessions.get(id); if (v) v.waiting = false; }
+      return json({ ok: true, admitted: ids.length });
     }
 
     const ap = path.match(/^\/api\/results\/([A-Za-z0-9_-]+)\/approve$/);

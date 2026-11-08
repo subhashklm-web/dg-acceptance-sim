@@ -96,12 +96,13 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mute
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
 .pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.bad{background:var(--bad-bg);color:var(--bad)}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
 .tile .big{font:700 30px var(--f-display);color:var(--ink);font-variant-numeric:tabular-nums}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px}
 .grid2>*{min-width:0}
 .hero{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:24px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center}
+.waitdots{display:flex;gap:8px;justify-content:center;margin-top:8px}.waitdots span{width:10px;height:10px;border-radius:50%;background:var(--sky);animation:wd 1.2s infinite ease-in-out}.waitdots span:nth-child(2){animation-delay:.2s}.waitdots span:nth-child(3){animation-delay:.4s}@keyframes wd{0%,80%,100%{opacity:.25}40%{opacity:1}}
 .hero .eyebrow{color:var(--sky);font-size:17px}
 .hero .labelrow{display:flex;gap:6px}
 .hero .labelrow img{width:60px;height:60px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px}
@@ -339,6 +340,7 @@ function renderStudent(){
   const app=$("#app");
   if(S.phase==="intro") return app.innerHTML=introHTML();
   if(S.phase==="done") return app.innerHTML=resultHTML();
+  if(S.phase==="wait") return app.innerHTML=waitHTML();
   const st=STAGES[S.stage-1];
   app.innerHTML=`<div class="stack">
    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Stage ${st.n} of 6 · about ${st.mins} min</div><h2>${esc(st.title)}</h2><p class="muted">${esc(st.sub)}</p></div><div class="row">${["K","S","A"].filter(k=>ITEMS.some(i=>i.st===st.n&&i.ksa===k)).map(k=>`<span class="tag ${k}">${k==="K"?"Knowledge":k==="S"?"Skill":"Attitude"}</span>`).join("")}</div></div>
@@ -370,7 +372,7 @@ function introHTML(){
     <div><label class="lbl" for="job">Job Title</label><input type="text" id="job" value="${esc(S.job)}" autocomplete="organization-title"></div>
     <div><label class="lbl" for="co">Company / Department</label><input type="text" id="co" value="${esc(S.company)}" autocomplete="organization"></div>
     <label class="row" style="gap:8px;align-items:flex-start;font-size:14px"><input type="checkbox" id="agree" style="margin-top:4px"> <span>I have read and understood the instructions.</span></label>
-    <button class="btn primary" id="startBtn">Start the 30-minute simulation</button>
+    <button class="btn primary" id="startBtn">${WEB?"Log in and wait for the trainer":"Start the 30-minute simulation"}</button>${WEB?`<p class="muted" style="font-size:14px;margin-top:6px">Your trainer admits you, then your 30 minutes start.</p>`:""}
     <p class="muted" id="startMsg" style="font-size:13px"></p></div>
   </div>
   <div class="card stack"><h3>Points by stage</h3><div class="legend"><span><i style="background:var(--k)"></i>Knowledge ${KSA_MAX.K}</span><span><i style="background:var(--s)"></i>Skill ${KSA_MAX.S}</span><span><i style="background:var(--a)"></i>Attitude ${KSA_MAX.A}</span></div><div class="tbl-wrap">${stackedStages()}</div></div>
@@ -451,7 +453,7 @@ function record(){const r=S.result;return {name:S.name,job:S.job,company:S.compa
 function resultCode(){try{return btoa(unescape(encodeURIComponent(JSON.stringify(record()))))}catch(e){return ""}}
 async function saveResult(){
   if(WEB){if(!S.webId){S.webId="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);save()}
-    try{const res=await fetch("/api/results",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...record(),id:S.webId})});if(!res.ok)throw 0;saveOk=true;saveMsg="✓ Your result was sent to the trainer."}
+    try{const res=await fetch("/api/results",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...record(),id:S.webId})});if(!res.ok)throw 0;saveOk=true;S.sent=true;save();saveMsg="✓ Your result was sent to the trainer."}
     catch(e){saveMsg="Your result could not be sent yet. Keep this page open and tell your trainer.";setTimeout(saveResult,15000)}
     return render()}
   if(!DB||!UID){saveMsg="Results could not be saved online from this view. Copy the result code below and give it to your trainer.";return render()}
@@ -472,7 +474,7 @@ document.addEventListener("click",e=>{
     const job=$("#job").value.trim(),co=$("#co").value.trim();
     if(!job||!co){$("#startMsg").textContent="Please fill in your Job Title and Company / Department.";(job?$("#co"):$("#job")).focus();return}
     if(!$("#agree").checked){$("#startMsg").textContent="Please tick the box to confirm you have read the instructions.";return}
-    S.name=nm;S.job=job;S.company=co;S.facil="";S.phase="run";S.start=Date.now();if(!S.webId)S.webId="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);save();render();ping();window.scrollTo(0,0);return}
+    S.name=nm;S.job=job;S.company=co;S.facil="";if(WEB){S.phase="wait";S.start=0}else{S.phase="run";S.start=Date.now()}if(!S.webId)S.webId="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);save();render();ping();window.scrollTo(0,0);return}
   if(t.dataset.ans){S.ans[t.dataset.ans]=+t.dataset.v;save();render();return}
   if(t.dataset.dlg){S.ans[t.dataset.dlg]=+t.dataset.v;save();render();return}
   if(t.dataset.yn){S.ans[t.dataset.yn]=t.dataset.v;save();render();return}
@@ -489,8 +491,16 @@ document.addEventListener("change",e=>{if(mode!=="student")return;const s=e.targ
 /* ---------- live heartbeat (public site) ---------- */
 let lastPing=0;
 function answeredCount(){return Object.values(S.ans).filter(v=>v!==undefined&&v!=="").length+Object.values(S.flags).filter(Boolean).length}
-function ping(){if(!WEB||S.phase!=="run"||!S.webId)return;lastPing=Date.now();
-  fetch("/api/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:S.webId,name:S.name,job:S.job,company:S.company,facil:S.facil,start:S.start,stage:S.stage,answered:answeredCount()})}).catch(()=>{})}
+function ping(){if(!WEB||(S.phase!=="run"&&S.phase!=="wait")||!S.webId)return;lastPing=Date.now();
+  fetch("/api/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:S.webId,name:S.name,job:S.job,company:S.company,facil:S.facil,phase:S.phase,start:S.start,stage:S.stage,answered:answeredCount()})})
+   .then(r=>r.ok?r.json():null).then(j=>{if(j&&j.admitted&&S.phase==="wait"){S.phase="run";S.start=Date.now();save();render();window.scrollTo(0,0)}}).catch(()=>{})}
+function waitHTML(){return `<div class="card stack" style="max-width:640px;margin:24px auto;text-align:center;padding:32px 24px">
+  <div class="eyebrow">Waiting to start</div>
+  <h2>Please wait for your trainer to admit you</h2>
+  <p>Thank you, <b>${esc(S.name)}</b>. Your details have been sent to the trainer. The assessment opens on this page as soon as the trainer admits you, and your 30 minutes start then.</p>
+  <p class="muted">Keep this page open. Do not refresh or close it.</p>
+  <div class="waitdots" aria-hidden="true"><span></span><span></span><span></span></div></div>`}
+setInterval(()=>{if(WEB&&mode==="student"&&S.phase==="wait"&&Date.now()-lastPing>3500)ping()},1000);
 /* ---------- timer ---------- */
 setInterval(()=>{
   const tm=$("#timer"),rail=$("#rail");
@@ -533,16 +543,16 @@ let SESS=[],SETTINGS={autoApprove:false},NOW=Date.now(),fQ="",fSt="all";
 function webDashHTML(){
   const A=allAttempts().filter(a=>a.src==="db");const n=A.length;
   const pend=A.filter(a=>a.status!=="approved").length, appr=n-pend;
-  const online=SESS.filter(s=>NOW-s.lastSeen<120000);
+  const online=SESS.filter(s=>!s.waiting&&NOW-s.lastSeen<120000);const waitingN=SESS.filter(s=>s.waiting&&NOW-s.lastSeen<120000).length;
   const q=fQ.toLowerCase();
   const rows=A.filter(a=>(fSt==="all"||(fSt==="approved"?a.status==="approved":a.status!=="approved"))&&(!q||[a.name,a.job,a.company,a.certNo].join(" ").toLowerCase().includes(q)));
   const avg=n?Math.round(A.reduce((s,a)=>s+a.pct,0)/n):0;
   const ksaAvg=k=>n?Math.round(A.reduce((s,a)=>s+a.ksa[k],0)/n/KSA_MAX[k]*100):0;
   return `<div class="stack">
-   <div class="tiles"><div class="tile"><div class="muted">Taking it now</div><div class="big">${online.length}</div></div><div class="tile"><div class="muted">Submitted</div><div class="big">${n}</div></div><div class="tile"><div class="muted">Waiting for approval</div><div class="big">${pend}</div></div><div class="tile"><div class="muted">Approved</div><div class="big">${appr}</div></div><div class="tile"><div class="muted">Average score</div><div class="big">${avg}%</div></div></div>
+   <div class="tiles"><div class="tile"><div class="muted">Waiting to start</div><div class="big">${waitingN}</div></div><div class="tile"><div class="muted">Taking it now</div><div class="big">${online.length}</div></div><div class="tile"><div class="muted">Submitted</div><div class="big">${n}</div></div><div class="tile"><div class="muted">Results to approve</div><div class="big">${pend}</div></div><div class="tile"><div class="muted">Approved</div><div class="big">${appr}</div></div><div class="tile"><div class="muted">Average score</div><div class="big">${avg}%</div></div></div>
    <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Approval</h3><label class="switch"><input type="checkbox" id="autoAp" ${SETTINGS.autoApprove?"checked":""}> Auto-approve new results</label></div>
     <p class="muted" style="font-size:13px">${SETTINGS.autoApprove?"Auto-approval is ON: every new result is approved as soon as it is submitted, and Competent / Distinction results get a certificate number straight away.":"Auto-approval is OFF: review each result below and press Approve. A certificate number is issued when you approve a Competent or Distinction result."} Participants never see marks or download anything; they only see their result.</p></div>
-   <div class="card stack"><h3>Taking the assessment now</h3>${SESS.length?`<div class="tbl-wrap"><table><thead><tr><th>Participant</th><th>Stage</th><th class="num">Answered</th><th>Time left</th><th>Status</th></tr></thead><tbody>${SESS.sort((a,b)=>b.lastSeen-a.lastSeen).map(s=>{const left=DURATION-(NOW-s.start)/1000;const on=NOW-s.lastSeen<120000;return `<tr><td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:12px">${esc([s.job,s.company].filter(Boolean).join(" · "))}</span></td><td>${s.stage} of 6 · ${esc(STAGES[s.stage-1]?.title||"")}</td><td class="num">${s.answered}</td><td class="mono">${left>0?fmt(left):"time up"}</td><td><span class="pill ${on?"ok":"wait"}">${on?"Online":"Inactive "+Math.round((NOW-s.lastSeen)/60000)+" min"}</span></td></tr>`}).join("")}</tbody></table></div>`:`<p class="muted">Nobody is taking the assessment right now. Participants appear here as soon as they press Start.</p>`}</div>
+   <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Participants: admit and follow live</h3>${waitingN?`<button class="btn primary small" id="admitAll">Admit all waiting (${waitingN})</button>`:""}</div><p class="muted" style="font-size:13px">Participants who log in wait here until you press Admit. Their 30 minutes start when you admit them.</p>${SESS.length?`<div class="tbl-wrap"><table><thead><tr><th>Participant</th><th>Stage</th><th class="num">Answered</th><th>Time left</th><th>Status</th></tr></thead><tbody>${SESS.sort((a,b)=>(b.waiting-a.waiting)||(b.lastSeen-a.lastSeen)).map(s=>{const on=NOW-s.lastSeen<120000;const who=`<td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:12px">${esc([s.job,s.company].filter(Boolean).join(" · "))}</span></td>`;if(s.waiting)return `<tr>${who}<td>Not started</td><td class="num">–</td><td class="mono">30:00</td><td>${on?`<button class="btn primary small" data-admit="${esc(s.id)}">Admit</button>`:`<span class="pill wait">Left the page</span>`}</td></tr>`;const left=s.start?DURATION-(NOW-s.start)/1000:DURATION;return `<tr>${who}<td>${s.stage} of 6 · ${esc(STAGES[s.stage-1]?.title||"")}</td><td class="num">${s.answered}</td><td class="mono">${left>0?fmt(left):"time up"}</td><td><span class="pill ${on?"ok":"wait"}">${on?"Online":"Inactive "+Math.round((NOW-s.lastSeen)/60000)+" min"}</span></td></tr>`}).join("")}</tbody></table></div>`:`<p class="muted">Nobody has logged in yet. Participants appear here as soon as they fill in their details and press Start.</p>`}</div>
    ${n?`<div class="grid2"><div class="card stack"><h3>Class average by KSA</h3>${hbars([["K","Knowledge"],["S","Skill"],["A","Attitude"]].map(([k,l])=>({label:l,value:ksaAvg(k),color:`var(--${k.toLowerCase()})`})))}</div>
     <div class="card stack"><h3>Results</h3>${hbars(["Distinction","Competent","Re-sit","Fail"].map(g=>{const c=A.filter(a=>a.grade===g).length;return {label:g,value:n?Math.round(c/n*100):0,color:g==="Distinction"||g==="Competent"?"var(--ok)":"var(--bad)",sub:c+" ("+(n?Math.round(c/n*100):0)+"%)"}}),{mark:null})}</div></div>`:""}
    <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Mark lists and certificates (saved records)</h3>${n?`<button class="btn primary small" id="pdfClass">Download class results (PDF)</button>`:""}</div>
@@ -572,7 +582,7 @@ function takeData(d){attempts=(d.results||[]).map(a=>({...a,src:"db"}));SESS=d.s
 function redrawDash(){if(mode==="trainer"&&tTab==="results"&&document.activeElement?.id!=="fQ"&&!document.querySelector("#tbody details[open]"))$("#tbody").innerHTML=resultsHTML()}
 async function pollWeb(){try{const res=await fetch("/api/results",{headers:{"x-pin":trainerPin}});if(res.ok){takeData(await res.json());redrawDash()}}catch(e){}}
 function listen(){
-  if(WEB){if(!unsub){unsub=setInterval(pollWeb,10000)}return}
+  if(WEB){if(!unsub){unsub=setInterval(pollWeb,5000)}return}
   if(unsub||!DB)return;
   const to=setTimeout(()=>{if(!attempts.length){}},10000);
   try{unsub=DB.collection("attempts").onSnapshot(snap=>{clearTimeout(to);attempts=snap.docs.map(d=>({...d.data(),id:d.id,src:"db"}));if(mode==="trainer"&&tTab==="results")$("#tbody").innerHTML=resultsHTML()},err=>{clearTimeout(to);unsub=null})}catch(e){}
@@ -584,6 +594,7 @@ document.addEventListener("click",async e=>{
     if(WEB){try{const res=await fetch("/api/results",{headers:{"x-pin":v}});if(!res.ok)throw 0;const d=await res.json();trainerPin=v;takeData(d);trainerUnlocked=true;tTab="results";render()}catch(err){$("#pinMsg").textContent="That PIN is not correct."}return}
     if(TRAINER_PIN&&v===TRAINER_PIN){trainerUnlocked=true;render()}else $("#pinMsg").textContent="That PIN is not correct.";return}
   if(t.dataset.tt){tTab=t.dataset.tt;render();return}
+  if(t.dataset.admit||t.id==="admitAll"){t.disabled=true;try{await fetch("/api/admit",{method:"POST",headers:{"x-pin":trainerPin,"content-type":"application/json"},body:JSON.stringify(t.id==="admitAll"?{all:true}:{ids:[t.dataset.admit]})});await pollWeb()}catch(e){t.disabled=false}return}
   if(t.dataset.ap||t.dataset.unap){const id=t.dataset.ap||t.dataset.unap;t.disabled=true;try{const res=await fetch("/api/results/"+encodeURIComponent(id)+"/approve",{method:"POST",headers:{"x-pin":trainerPin,"content-type":"application/json"},body:JSON.stringify({approve:!!t.dataset.ap})});if(!res.ok)throw 0;await pollWeb();$("#tbody").innerHTML=resultsHTML()}catch(err){t.disabled=false;t.textContent="Try again"}return}
   if(t.id==="pdfClass"||t.dataset.pdf){const lbl=t.textContent;t.disabled=true;t.textContent="Preparing…";try{t.id==="pdfClass"?await pdfClass():await pdfStudent(t.dataset.pdf);t.textContent=lbl}catch(err){t.textContent="PDF failed, try again"}t.disabled=false;return}
   if(t.id==="impBtn"){try{const r=JSON.parse(decodeURIComponent(escape(atob($("#imp").value.trim()))));if(r.pct==null||!r.ksa)throw 0;r.id="code_"+r.name+"_"+r.submitted;r.src="code";imported.push(r);try{localStorage.setItem("dg41d_imported",JSON.stringify(imported))}catch(e){}$("#tbody").innerHTML=resultsHTML()}catch(err){$("#impMsg").textContent="That code is not valid. Ask the student to copy it again."}return}
@@ -700,5 +711,7 @@ function render(){
   mode==="trainer"?renderTrainer():renderStudent();
 }
 render();
+if(WEB&&S.phase==="done"&&S.result&&!S.sent)saveResult(); // resend a result that did not reach the server
+else if(WEB&&S.phase==="wait")ping();
 </script>
 </body></html>
