@@ -44,6 +44,7 @@ async function getSettings() {
 
 // Live participants (in memory: only needed while people are taking the assessment)
 const sessions = new Map<string, any>();
+const submitted = new Set<string>(); // ignore late heartbeats after a result arrives
 
 const certKey = (id: string) => createHmac("sha256", PIN).update(id).digest("hex").slice(0, 24);
 function certNo(r: any) {
@@ -75,6 +76,7 @@ Bun.serve({
       try { b = JSON.parse(await req.text()); } catch { return json({ error: "bad json" }, 400); }
       const id = cleanId(b.id);
       if (!id) return json({ error: "missing id" }, 400);
+      if (submitted.has(id)) return json({ ok: true });
       const s = (v: unknown, n = 120) => String(v ?? "").slice(0, n);
       sessions.set(id, {
         id, name: s(b.name), job: s(b.job), company: s(b.company), facil: s(b.facil),
@@ -104,6 +106,7 @@ Bun.serve({
         all[id] = r;
         await writeResults(all);
       });
+      submitted.add(id);
       sessions.delete(id);
       return json({ ok: true, id });
     }
