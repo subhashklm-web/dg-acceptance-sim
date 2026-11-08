@@ -1,4 +1,5 @@
 import { S3Client } from "bun";
+import { createHmac } from "node:crypto";
 
 const s3 = new S3Client({
   accessKeyId: Bun.env.S3_KEY,
@@ -13,29 +14,53 @@ const PIN = Bun.env.TRAINER_PIN || "DG4D-2026";
 const VENDOR = new Set(["jspdf.umd.min.js", "jspdf.plugin.autotable.min.js"]);
 const CERT = await Bun.file(import.meta.dir + "/certificate.html").text();
 const PAGE = await Bun.file(import.meta.dir + "/index.html").text();
-async function page(): Promise<string> { return PAGE; }
 
+// ---- storage helpers (one JSON file per collection in the bucket) ----
 let chain: Promise<unknown> = Promise.resolve();
 function serial<T>(fn: () => Promise<T>): Promise<T> {
   const p = chain.then(fn, fn);
   chain = p.catch(() => {});
   return p;
 }
-async function readResults(): Promise<Record<string, any>> {
+async function readJSON(name: string, fallback: any) {
   try {
-    const f = s3.file("results.json");
-    if (!(await f.exists())) return {};
+    const f = s3.file(name);
+    if (!(await f.exists())) return fallback;
     return JSON.parse(await f.text());
   } catch {
-    return {};
+    return fallback;
   }
 }
-async function writeResults(r: Record<string, any>) {
-  await s3.write("results.json", JSON.stringify(r), { type: "application/json" });
+async function writeJSON(name: string, data: unknown) {
+  await s3.write(name, JSON.stringify(data), { type: "application/json" });
+}
+const readResults = (): Promise<Record<string, any>> => readJSON("results.json", {});
+const writeResults = (r: Record<string, any>) => writeJSON("results.json", r);
+let settingsCache: { autoApprove: boolean } | null = null;
+async function getSettings() {
+  if (!settingsCache) settingsCache = { autoApprove: false, ...(await readJSON("settings.json", {})) };
+  return settingsCache!;
+}
+
+// Live participants (in memory: only needed while people are taking the assessment)
+const sessions = new Map<string, any>();
+
+const certKey = (id: string) => createHmac("sha256", PIN).update(id).digest("hex").slice(0, 24);
+function certNo(r: any) {
+  const d = new Date(r.submitted || r.received || Date.now());
+  return "ATC-" + d.toISOString().slice(2, 10).replace(/-/g, "") + "-" + String(r.id).slice(-6).toUpperCase();
+}
+function approve(r: any, by = "trainer") {
+  r.status = "approved";
+  r.approvedAt = Date.now();
+  r.approvedBy = by;
+  if (r.competent && !r.certNo) r.certNo = certNo(r);
 }
 
 const json = (d: unknown, status = 200) =>
   new Response(JSON.stringify(d), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+const cleanId = (s: unknown) => String(s || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+const isTrainer = (req: Request) => req.headers.get("x-pin") === PIN;
 
 Bun.serve({
   port: Number(Bun.env.PORT || 3000),
@@ -44,32 +69,88 @@ Bun.serve({
     const url = new URL(req.url);
     const path = url.pathname;
 
+    // participant heartbeat while taking the assessment
+    if (path === "/api/session" && req.method === "POST") {
+      let b: any;
+      try { b = JSON.parse(await req.text()); } catch { return json({ error: "bad json" }, 400); }
+      const id = cleanId(b.id);
+      if (!id) return json({ error: "missing id" }, 400);
+      const s = (v: unknown, n = 120) => String(v ?? "").slice(0, n);
+      sessions.set(id, {
+        id, name: s(b.name), job: s(b.job), company: s(b.company), facil: s(b.facil),
+        start: Number(b.start) || Date.now(), stage: Number(b.stage) || 1, answered: Number(b.answered) || 0,
+        lastSeen: Date.now(),
+      });
+      return json({ ok: true });
+    }
+
     if (path === "/api/results" && req.method === "POST") {
       const text = await req.text();
       if (text.length > 60_000) return json({ error: "too large" }, 413);
       let r: any;
       try { r = JSON.parse(text); } catch { return json({ error: "bad json" }, 400); }
       if (typeof r !== "object" || !r || typeof r.pct !== "number" || !r.ksa) return json({ error: "bad result" }, 400);
-      const id = String(r.id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+      const id = cleanId(r.id);
       if (!id) return json({ error: "missing id" }, 400);
       r.id = id;
       r.received = Date.now();
+      delete r.status; delete r.approvedAt; delete r.approvedBy; delete r.certNo;
+      const settings = await getSettings();
       await serial(async () => {
         const all = await readResults();
+        if (all[id]?.status === "approved") return; // never overwrite an approved record
+        r.status = "pending";
+        if (settings.autoApprove) approve(r, "auto");
         all[id] = r;
         await writeResults(all);
       });
+      sessions.delete(id);
       return json({ ok: true, id });
     }
 
     if (path === "/api/results" && req.method === "GET") {
-      if (req.headers.get("x-pin") !== PIN) return json({ error: "wrong pin" }, 403);
+      if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
       const all = await readResults();
-      return json({ results: Object.values(all) });
+      const now = Date.now();
+      for (const [k, v] of sessions) if (now - v.lastSeen > 3 * 3600_000) sessions.delete(k);
+      const results = Object.values(all).map((r: any) => ({
+        ...r,
+        status: r.status || "pending",
+        certKey: r.status === "approved" && r.competent ? certKey(r.id) : undefined,
+      }));
+      return json({ results, sessions: [...sessions.values()], settings: await getSettings(), now });
+    }
+
+    const ap = path.match(/^\/api\/results\/([A-Za-z0-9_-]+)\/approve$/);
+    if (ap && req.method === "POST") {
+      if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
+      let b: any = {};
+      try { b = JSON.parse(await req.text()); } catch {}
+      const id = ap[1];
+      const out = await serial(async () => {
+        const all = await readResults();
+        const r = all[id];
+        if (!r) return null;
+        if (b.approve === false) { r.status = "pending"; delete r.approvedAt; delete r.approvedBy; }
+        else approve(r, "trainer");
+        await writeResults(all);
+        return r;
+      });
+      return out ? json({ ok: true, status: out.status }) : json({ error: "not found" }, 404);
+    }
+
+    if (path === "/api/settings" && req.method === "POST") {
+      if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
+      let b: any = {};
+      try { b = JSON.parse(await req.text()); } catch {}
+      const s = await getSettings();
+      s.autoApprove = !!b.autoApprove;
+      await writeJSON("settings.json", s);
+      return json({ ok: true, settings: s });
     }
 
     if (path.startsWith("/api/results/") && req.method === "DELETE") {
-      if (req.headers.get("x-pin") !== PIN) return json({ error: "wrong pin" }, 403);
+      if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
       const id = decodeURIComponent(path.slice("/api/results/".length));
       await serial(async () => {
         const all = await readResults();
@@ -81,30 +162,6 @@ Bun.serve({
 
     if (path === "/health") return json({ ok: true });
 
-    if (req.method === "GET" && path === "/certificate") {
-      const id = String(url.searchParams.get("id") || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
-      const all = id ? await readResults() : {};
-      const r = all[id];
-      if (!r || !r.competent) {
-        return new Response(
-          "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Certificate not available</title><body style='font:16px Arial,sans-serif;max-width:560px;margin:60px auto;padding:0 16px;color:#142b56'><h2>Certificate not available</h2><p>A certificate is issued only for a saved result of Competent or Distinction. Please check with your trainer.</p></body>",
-          { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
-        );
-      }
-      const d = new Date(r.submitted || r.received || Date.now());
-      const ymd = d.toISOString().slice(0, 10).replace(/-/g, "");
-      const qs = new URLSearchParams({
-        name: String(r.name || ""),
-        date: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-        result: String(r.grade || "") + " (" + r.pct + "%)",
-        ref: "ATC-" + ymd.slice(2) + "-" + id.slice(-6).toUpperCase(),
-        assessor: String(r.facil || ""),
-      });
-      if (url.searchParams.get("download") === "1") qs.set("download", "1");
-      const html = CERT.replace("__CERTQS__", () => JSON.stringify(qs.toString()).replace(/</g, "\\u003c"));
-      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
-    }
-
     if (req.method === "GET" && path.startsWith("/vendor/")) {
       const name = path.slice("/vendor/".length);
       if (VENDOR.has(name)) {
@@ -115,10 +172,33 @@ Bun.serve({
       return json({ error: "not found" }, 404);
     }
 
-    if (req.method === "GET") {
-      return new Response(await page(), {
-        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" },
+    // Certificate: trainer only (signed link), approved Competent / Distinction results only
+    if (req.method === "GET" && path === "/certificate") {
+      const id = cleanId(url.searchParams.get("id"));
+      const k = String(url.searchParams.get("k") || "");
+      const all = id && k === certKey(id) ? await readResults() : {};
+      const r = all[id];
+      if (!r || !r.competent || r.status !== "approved") {
+        return new Response(
+          "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Certificate not available</title><body style='font:16px Arial,sans-serif;max-width:560px;margin:60px auto;padding:0 16px;color:#142b56'><h2>Certificate not available</h2><p>Certificates are issued by the trainer for approved Competent and Distinction results. Open it from the trainer dashboard.</p></body>",
+          { status: 404, headers: { "content-type": "text/html; charset=utf-8" } },
+        );
+      }
+      const d = new Date(r.submitted || r.received || Date.now());
+      const qs = new URLSearchParams({
+        name: String(r.name || ""),
+        date: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+        result: String(r.grade || "") + " (" + r.pct + "%)",
+        ref: String(r.certNo || certNo(r)),
+        assessor: String(r.facil || ""),
       });
+      if (url.searchParams.get("download") === "1") qs.set("download", "1");
+      const html = CERT.replace("__CERTQS__", () => JSON.stringify(qs.toString()).replace(/</g, "\\u003c"));
+      return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+    }
+
+    if (req.method === "GET") {
+      return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
     }
     return json({ error: "not found" }, 404);
   },

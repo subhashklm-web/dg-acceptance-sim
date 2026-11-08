@@ -118,6 +118,11 @@ svg text{font-family:var(--f-body)}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
 details summary{cursor:pointer;font-weight:600}
+.pillbig{font:700 22px var(--f-display);letter-spacing:.06em;padding:14px 20px;border-radius:10px;text-align:center}
+.pillbig.ok{background:var(--ok-bg);color:var(--ok)}.pillbig.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.wait{background:var(--warn-bg);color:var(--ink)}
+.switch{display:inline-flex;gap:8px;align-items:center;font-weight:600}
+.switch input{width:20px;height:20px}
 ul.plane{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 ul.plane li{position:relative;padding-left:26px}
 ul.plane li::before{content:"✈";position:absolute;left:0;top:0;color:var(--accent);font-size:15px}
@@ -420,7 +425,20 @@ function sheetHTML(a){
    <div class="tbl-wrap"><table><thead><tr><td colspan="3" class="k" style="width:auto">For Official Use Only:</td></tr><tr><th class="r">Marks</th><th class="r">Result</th><th class="r">Marks Obtained</th></tr></thead><tbody>${bands.map(([m,r])=>`<tr class="${r===b?"hit":""}"><td style="text-align:center;font-weight:700">${m}</td><td style="text-align:center;font-weight:700">${r}</td><td style="text-align:center">${r===b?a.total+" / "+TOTAL+" ("+a.pct+"%)":""}</td></tr>`).join("")}<tr><td style="text-align:center;font-weight:700;background:#eaf0de">Attitude</td><td colspan="2" style="background:#eaf0de"><b>${esc(a.attitude||"")}</b> · Final result: <b>${esc(a.grade)}</b></td></tr></tbody></table></div>
    <div class="foot">${PROPRIETARY}</div></div>`;
 }
+function resultWebHTML(){
+  const r=S.result; const ok=r.competent;
+  return `<div class="stack">
+   <section class="hero"><div class="stack"><div class="eyebrow">Assessment result · ${esc(S.name)}</div><h1>${esc(r.grade)}</h1>
+    <p>Attitude: <b>${esc(r.attitude)}</b>${r.crit.length?` · you chose an unsafe option in ${r.crit.length} situation${r.crit.length>1?"s":""}`:""}</p></div>
+    <div class="pillbig ${ok?"ok":"bad"}">${ok?"PASS":"NOT YET PASSED"}</div></section>
+   <div class="card stack"><h3>What happens next</h3>
+    <p id="saveMsg">${saveMsg}</p>
+    <p>Your trainer will review your result.${ok?" Your certificate is issued by the trainer after approval.":" Your trainer will talk to you about the next steps."}</p>
+    <p class="muted" style="font-size:13px">Results bands: 90–100 Distinction, 80–89 Competent, 70–79 Re-sit, 0–69 Fail.</p></div>
+  </div>`;
+}
 function resultHTML(){
+  if(WEB) return resultWebHTML();
   const r=S.result; const ok=r.competent;
   const answered=Object.keys(S.ans).length;
   const code=resultCode();
@@ -432,7 +450,7 @@ function resultHTML(){
    </div>
    ${r.crit.length?`<div class="card" style="background:var(--bad-bg)"><b>Attitude:</b> you chose an unsafe option in ${r.crit.length} situation${r.crit.length>1?"s":""}. Your trainer will go through this with you.</div>`:""}
    ${sheetHTML(record())}
-   ${WEB?`<div class="card stack"><h3>Your documents</h3><div class="row"><button class="btn" id="myPdf">Download my result (PDF)</button>${r.competent?(S.webId&&saveOk?`<a class="btn primary" href="${certURL({id:S.webId})}" target="_blank" rel="noopener" style="text-decoration:none">Open my certificate (print or download)</a>`:`<span class="muted">Your certificate link appears here once your result is saved.</span>`):`<span class="muted">A certificate is issued for Competent and Distinction results.</span>`}</div></div>`:""}
+   ${false?`<div class="card stack"><h3>Your documents</h3><div class="row"><button class="btn" id="myPdf">Download my result (PDF)</button>${r.competent?(S.webId&&saveOk?`<a class="btn primary" href="${certURL({id:S.webId})}" target="_blank" rel="noopener" style="text-decoration:none">Open my certificate (print or download)</a>`:`<span class="muted">Your certificate link appears here once your result is saved.</span>`):`<span class="muted">A certificate is issued for Competent and Distinction results.</span>`}</div></div>`:""}
    <div class="card stack"><h3>Send your result to the trainer</h3><p id="saveMsg">${saveMsg}</p>
     <details><summary>Result code (use if the trainer asks for it)</summary><textarea id="code" rows="3" readonly style="margin-top:8px;font-family:var(--f-mono);font-size:12px">${code}</textarea><button class="btn small" id="copyCode" style="margin-top:6px">Copy code</button></details></div>
    <div class="row"><button class="btn" id="restart">Start a new attempt</button></div>
@@ -444,7 +462,7 @@ function resultCode(){try{return btoa(unescape(encodeURIComponent(JSON.stringify
 async function saveResult(){
   if(WEB){if(!S.webId){S.webId="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);save()}
     try{const res=await fetch("/api/results",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...record(),id:S.webId})});if(!res.ok)throw 0;saveOk=true;saveMsg="✓ Your result was sent to the trainer."}
-    catch(e){saveMsg="Your result could not be sent. Copy the result code below and give it to your trainer."}
+    catch(e){saveMsg="Your result could not be sent yet. Keep this page open and tell your trainer.";setTimeout(saveResult,15000)}
     return render()}
   if(!DB||!UID){saveMsg="Results could not be saved online from this view. Copy the result code below and give it to your trainer.";return render()}
   try{await DB.doc("attempts/"+UID).set({...record(),uid:UID});saveMsg="✓ Your result was sent to the trainer.";}
@@ -464,13 +482,13 @@ document.addEventListener("click",e=>{
     const job=$("#job").value.trim(),co=$("#co").value.trim();
     if(!job||!co){$("#startMsg").textContent="Please fill in your Job Title and Company / Department.";(job?$("#co"):$("#job")).focus();return}
     if(!$("#agree").checked){$("#startMsg").textContent="Please tick the box to confirm you have read the instructions.";return}
-    S.name=nm;S.job=job;S.company=co;S.facil=$("#fac").value.trim();S.phase="run";S.start=Date.now();save();render();window.scrollTo(0,0);return}
+    S.name=nm;S.job=job;S.company=co;S.facil=$("#fac").value.trim();S.phase="run";S.start=Date.now();if(!S.webId)S.webId="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);save();render();ping();window.scrollTo(0,0);return}
   if(t.dataset.ans){S.ans[t.dataset.ans]=+t.dataset.v;save();render();return}
   if(t.dataset.dlg){S.ans[t.dataset.dlg]=+t.dataset.v;save();render();return}
   if(t.dataset.yn){S.ans[t.dataset.yn]=t.dataset.v;save();render();return}
   if(t.dataset.flag){S.flags[t.dataset.flag]=!S.flags[t.dataset.flag];save();render();return}
   if(t.dataset.mv){const i=+t.dataset.mv,j=i+ +t.dataset.d;[S.order[i],S.order[j]]=[S.order[j],S.order[i]];save();render();return}
-  if(t.dataset.nav){S.stage=Math.min(6,Math.max(1,S.stage+ +t.dataset.nav));save();render();window.scrollTo(0,0);return}
+  if(t.dataset.nav){S.stage=Math.min(6,Math.max(1,S.stage+ +t.dataset.nav));save();render();ping();window.scrollTo(0,0);return}
   if(t.dataset.submit){if(t.dataset.confirm){submit(false);return}t.dataset.confirm="1";t.textContent="Tap again to confirm submit";return}
   if(t.id==="restart"){if(!t.dataset.confirm){t.dataset.confirm="1";t.textContent="Tap again: this clears your answers";return}const keep={name:S.name,job:S.job,company:S.company,facil:S.facil};S=fresh();Object.assign(S,keep);saveMsg="Saving your result…";save();render();return}
   if(t.id==="myPdf"){const lbl=t.textContent;t.disabled=true;t.textContent="Preparing…";pdfStudent(null,{...record(),id:S.webId||"me"}).then(()=>{t.textContent=lbl;t.disabled=false}).catch(()=>{t.textContent="PDF failed, try again";t.disabled=false});return}
@@ -478,6 +496,11 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("change",e=>{if(mode!=="student")return;const s=e.target.closest("[data-sel]");if(s){S.ans[s.dataset.sel]=s.value===""?undefined:+s.value;save()}});
 
+/* ---------- live heartbeat (public site) ---------- */
+let lastPing=0;
+function answeredCount(){return Object.values(S.ans).filter(v=>v!==undefined&&v!=="").length+Object.values(S.flags).filter(Boolean).length}
+function ping(){if(!WEB||S.phase!=="run"||!S.webId)return;lastPing=Date.now();
+  fetch("/api/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:S.webId,name:S.name,job:S.job,company:S.company,facil:S.facil,start:S.start,stage:S.stage,answered:answeredCount()})}).catch(()=>{})}
 /* ---------- timer ---------- */
 setInterval(()=>{
   const tm=$("#timer"),rail=$("#rail");
@@ -487,6 +510,7 @@ setInterval(()=>{
   const left=DURATION-(Date.now()-S.start)/1000;
   tm.textContent=fmt(left);tm.classList.toggle("low",left<300);
   rail.innerHTML=STAGES.map(s=>`<span class="${s.n<S.stage?"done":s.n===S.stage?"cur":""}"></span>`).join("");
+  if(Date.now()-lastPing>20000)ping();
   if(left<=0)submit(true);
 },500);
 
@@ -497,7 +521,7 @@ function renderTrainer(){
   if(!(CAN_EDIT||trainerUnlocked)){
     app.innerHTML=`<div class="card stack" style="max-width:460px"><h2>Trainer view</h2><p class="muted">Answers, scoring and student results. ${WEB?"Enter the trainer PIN.":"Open this page as its owner or an editor, or enter the trainer PIN."}</p><div><label class="lbl" for="pin">Trainer PIN</label><input type="password" id="pin"></div><button class="btn primary" id="pinBtn">Open trainer view</button><p id="pinMsg" class="muted"></p></div>`;return;
   }
-  const tabs=[["plan","Session plan"],["key","Answer key & KSA map"],["observe","Attitude observation"],["results","Student results"]];
+  const tabs=[["plan","Session plan"],["key","Answer key & KSA map"],["observe","Attitude observation"],["results",WEB?"Dashboard":"Student results"]];
   app.innerHTML=`<div class="stack"><div><div class="eyebrow">Trainer · GCAA CAR Part VI Table 4.1.D</div><h1>CBTA DG assessment simulation</h1></div>
    <div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-tt="${k}" aria-selected="${tTab===k}">${l}</button>`).join("")}</div>
    <div id="tbody">${trainerBody()}</div></div>`;
@@ -505,7 +529,7 @@ function renderTrainer(){
 }
 function trainerBody(){
   if(tTab==="plan") return `<div class="stack">
-   <div class="card stack"><h3>Links</h3><p>Student link: <span class="mono">${esc(ART_URL)}#student</span></p><p>Trainer link: <span class="mono">${esc(ART_URL)}#trainer</span> ${WEB?"(needs the trainer PIN)":`(PIN <span class="mono">${TRAINER_PIN}</span> for co-trainers who are not editors)`}</p><p class="muted" style="font-size:13px">${WEB?"Results arrive here when students submit. This list refreshes every 15 seconds.":"Share the page with students as <b>Contributor</b> so their results reach this view. Viewers and people outside your organization can still take it, then give you their result code."}</p></div>
+   <div class="card stack"><h3>Links</h3><p>Student link: <span class="mono">${esc(ART_URL)}#student</span></p><p>Trainer link: <span class="mono">${esc(ART_URL)}#trainer</span> ${WEB?"(needs the trainer PIN)":`(PIN <span class="mono">${TRAINER_PIN}</span> for co-trainers who are not editors)`}</p><p class="muted" style="font-size:13px">${WEB?"Open the Dashboard tab to see who is taking the assessment now, approve results, and open saved mark lists and certificates. It refreshes every 10 seconds. Participants only see their result (Competent, Re-sit, Fail…), never marks or downloads.":"Share the page with students as <b>Contributor</b> so their results reach this view. Viewers and people outside your organization can still take it, then give you their result code."}</p></div>
    <div class="card stack"><h3>30-minute run sheet</h3><div class="tbl-wrap">${timeline()}</div>
     <div class="tbl-wrap"><table><thead><tr><th>Min</th><th>Stage</th><th>Assesses</th><th class="num">Marks</th></tr></thead><tbody>${(()=>{let m=1;return `<tr><td>0–1</td><td>Brief: role, rules, timer</td><td>—</td><td class="num">—</td></tr>`+STAGES.map(s=>{const a=m;m+=s.mins;const k=["K","S","A"].filter(x=>ITEMS.some(i=>i.st===s.n&&i.ksa===x));return `<tr><td>${a}–${m}</td><td><b>${s.n}. ${esc(s.title)}</b><br><span class="muted">${esc(s.sub)}</span></td><td>${k.map(x=>`<span class="tag ${x}">${x}</span>`).join(" ")}</td><td class="num">${STAGE_MAX[s.n]}</td></tr>`}).join("")})()}</tbody></table></div>
     <p class="muted" style="font-size:13px">Bands (CAR Part VI Table 4.1.D distinction 90%): 90–100 Distinction, 80–89 Competent, 70–79 Re-sit, 0–69 Fail. Pass mark 80% (CAR Part VI Table 4.1.D). Any unsafe attitude choice in Stage 5 makes the attitude “Not acceptable” and the result “Re-sit”, whatever the score. Certificates are issued to Competent and Distinction results only. The employer sets the method, assessor and frequency (CAR Part VI 4.8). Function 7.3 (report undeclared or mis-declared DG, CAR Part VI 9.1.1, RODGO within 72 hours) is tested in Stages 5 and 6.</p></div>
@@ -515,7 +539,30 @@ function trainerBody(){
   if(tTab==="results") return resultsHTML();
 }
 function allAttempts(){const m=new Map();attempts.forEach(a=>m.set(a.id,a));imported.forEach(a=>m.set(a.id,a));return [...m.values()].sort((a,b)=>(b.submitted||0)-(a.submitted||0))}
+let SESS=[],SETTINGS={autoApprove:false},NOW=Date.now(),fQ="",fSt="all";
+function webDashHTML(){
+  const A=allAttempts().filter(a=>a.src==="db");const n=A.length;
+  const pend=A.filter(a=>a.status!=="approved").length, appr=n-pend;
+  const online=SESS.filter(s=>NOW-s.lastSeen<120000);
+  const q=fQ.toLowerCase();
+  const rows=A.filter(a=>(fSt==="all"||(fSt==="approved"?a.status==="approved":a.status!=="approved"))&&(!q||[a.name,a.job,a.company,a.certNo].join(" ").toLowerCase().includes(q)));
+  const avg=n?Math.round(A.reduce((s,a)=>s+a.pct,0)/n):0;
+  const ksaAvg=k=>n?Math.round(A.reduce((s,a)=>s+a.ksa[k],0)/n/KSA_MAX[k]*100):0;
+  return `<div class="stack">
+   <div class="tiles"><div class="tile"><div class="muted">Taking it now</div><div class="big">${online.length}</div></div><div class="tile"><div class="muted">Submitted</div><div class="big">${n}</div></div><div class="tile"><div class="muted">Waiting for approval</div><div class="big">${pend}</div></div><div class="tile"><div class="muted">Approved</div><div class="big">${appr}</div></div><div class="tile"><div class="muted">Average score</div><div class="big">${avg}%</div></div></div>
+   <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Approval</h3><label class="switch"><input type="checkbox" id="autoAp" ${SETTINGS.autoApprove?"checked":""}> Auto-approve new results</label></div>
+    <p class="muted" style="font-size:13px">${SETTINGS.autoApprove?"Auto-approval is ON: every new result is approved as soon as it is submitted, and Competent / Distinction results get a certificate number straight away.":"Auto-approval is OFF: review each result below and press Approve. A certificate number is issued when you approve a Competent or Distinction result."} Participants never see marks or download anything; they only see their result.</p></div>
+   <div class="card stack"><h3>Taking the assessment now</h3>${SESS.length?`<div class="tbl-wrap"><table><thead><tr><th>Participant</th><th>Stage</th><th class="num">Answered</th><th>Time left</th><th>Status</th></tr></thead><tbody>${SESS.sort((a,b)=>b.lastSeen-a.lastSeen).map(s=>{const left=DURATION-(NOW-s.start)/1000;const on=NOW-s.lastSeen<120000;return `<tr><td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:12px">${esc([s.job,s.company].filter(Boolean).join(" · "))}</span></td><td>${s.stage} of 6 · ${esc(STAGES[s.stage-1]?.title||"")}</td><td class="num">${s.answered}</td><td class="mono">${left>0?fmt(left):"time up"}</td><td><span class="pill ${on?"ok":"wait"}">${on?"Online":"Inactive "+Math.round((NOW-s.lastSeen)/60000)+" min"}</span></td></tr>`}).join("")}</tbody></table></div>`:`<p class="muted">Nobody is taking the assessment right now. Participants appear here as soon as they press Start.</p>`}</div>
+   ${n?`<div class="grid2"><div class="card stack"><h3>Class average by KSA</h3>${hbars([["K","Knowledge"],["S","Skill"],["A","Attitude"]].map(([k,l])=>({label:l,value:ksaAvg(k),color:`var(--${k.toLowerCase()})`})))}</div>
+    <div class="card stack"><h3>Results</h3>${hbars(["Distinction","Competent","Re-sit","Fail"].map(g=>{const c=A.filter(a=>a.grade===g).length;return {label:g,value:n?Math.round(c/n*100):0,color:g==="Distinction"||g==="Competent"?"var(--ok)":"var(--bad)",sub:c+" ("+(n?Math.round(c/n*100):0)+"%)"}}),{mark:null})}</div></div>`:""}
+   <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Mark lists and certificates (saved records)</h3>${n?`<button class="btn primary small" id="pdfClass">Download class results (PDF)</button>`:""}</div>
+    <p class="muted" style="font-size:13px">Every submitted result is saved on the server and stays here after the assessment ends, until you remove it.</p>
+    <div class="row"><input type="text" id="fQ" placeholder="Search name, company or certificate no." value="${esc(fQ)}" style="flex:1 1 240px;width:auto"><select id="fSt" style="width:auto"><option value="all" ${fSt==="all"?"selected":""}>All</option><option value="pending" ${fSt==="pending"?"selected":""}>Waiting for approval</option><option value="approved" ${fSt==="approved"?"selected":""}>Approved</option></select></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Participant</th><th>Date</th><th class="num">Score</th><th>Result</th><th>Approval</th><th>Records</th></tr></thead><tbody>${rows.map(a=>{const ok=a.status==="approved";return `<tr><td><b>${esc(a.name)}</b><br><span class="muted" style="font-size:12px">${esc([a.job||a.staff,a.company].filter(Boolean).join(" · "))}</span></td><td style="font-size:13px">${a.submitted?new Date(a.submitted).toLocaleString():""}<br><span class="muted">${fmt(a.used||0)} used</span></td><td class="num"><b>${a.pct}%</b><br><span class="muted" style="font-size:12px">K ${a.ksa.K} · S ${a.ksa.S} · A ${a.ksa.A}</span></td><td><span class="pill ${a.competent?"ok":"bad"}">${esc(a.grade)}</span>${a.crit&&a.crit.length?`<br><span style="font-size:12px;color:var(--bad)">Attitude: not acceptable</span>`:""}</td><td>${ok?`<span class="pill ok">Approved</span><br><span class="muted" style="font-size:12px">${a.approvedBy==="auto"?"auto":"by trainer"} · ${a.approvedAt?new Date(a.approvedAt).toLocaleDateString():""}</span><br><button class="btn small" data-unap="${esc(a.id)}" style="margin-top:4px">Undo</button>`:`<span class="pill wait">Waiting</span><br><button class="btn primary small" data-ap="${esc(a.id)}" style="margin-top:4px">Approve</button>`}</td><td><div class="row" style="gap:6px"><button class="btn small" data-pdf="${esc(a.id)}">Mark list (PDF)</button>${ok&&a.competent&&a.certKey?`<a class="btn small" href="/certificate?id=${encodeURIComponent(a.id)}&k=${a.certKey}" target="_blank" rel="noopener" style="text-decoration:none">Certificate</a>`:""}<button class="btn small" data-del="${esc(a.id)}">Remove</button></div>${a.certNo?`<span class="muted mono" style="font-size:11px">${esc(a.certNo)}</span>`:""}</td></tr>`}).join("")||`<tr><td colspan="6" class="muted">${n?"No records match.":"No results yet. They appear here when participants submit."}</td></tr>`}</tbody></table></div></div>
+  </div>`;
+}
 function resultsHTML(){
+  if(WEB) return webDashHTML();
   const A=allAttempts(); const n=A.length;
   const passN=A.filter(a=>a.competent).length;
   const avg=n?Math.round(A.reduce((s,a)=>s+a.pct,0)/n):0;
@@ -531,9 +578,11 @@ function resultsHTML(){
    <div class="card stack"><h3>Add a result code</h3><p class="muted" style="font-size:13px">For students who could not send online. Codes you add stay on this device.</p><textarea id="imp" rows="3" style="font-family:var(--f-mono);font-size:12px"></textarea><div class="row"><button class="btn" id="impBtn">Add result</button><span id="impMsg" class="muted"></span></div></div>
   </div>`;
 }
-async function pollWeb(){try{const res=await fetch("/api/results",{headers:{"x-pin":trainerPin}});if(res.ok){const d=await res.json();attempts=(d.results||[]).map(a=>({...a,src:"db"}));if(mode==="trainer"&&tTab==="results"&&!document.querySelector("#tbody details[open]"))$("#tbody").innerHTML=resultsHTML()}}catch(e){}}
+function takeData(d){attempts=(d.results||[]).map(a=>({...a,src:"db"}));SESS=d.sessions||[];SETTINGS=d.settings||SETTINGS;NOW=d.now||Date.now()}
+function redrawDash(){if(mode==="trainer"&&tTab==="results"&&document.activeElement?.id!=="fQ"&&!document.querySelector("#tbody details[open]"))$("#tbody").innerHTML=resultsHTML()}
+async function pollWeb(){try{const res=await fetch("/api/results",{headers:{"x-pin":trainerPin}});if(res.ok){takeData(await res.json());redrawDash()}}catch(e){}}
 function listen(){
-  if(WEB){if(!unsub){unsub=setInterval(pollWeb,15000)}return}
+  if(WEB){if(!unsub){unsub=setInterval(pollWeb,10000)}return}
   if(unsub||!DB)return;
   const to=setTimeout(()=>{if(!attempts.length){}},10000);
   try{unsub=DB.collection("attempts").onSnapshot(snap=>{clearTimeout(to);attempts=snap.docs.map(d=>({...d.data(),id:d.id,src:"db"}));if(mode==="trainer"&&tTab==="results")$("#tbody").innerHTML=resultsHTML()},err=>{clearTimeout(to);unsub=null})}catch(e){}
@@ -542,15 +591,20 @@ document.addEventListener("click",async e=>{
   if(mode!=="trainer")return;
   const t=e.target.closest("button");if(!t)return;
   if(t.id==="pinBtn"){const v=$("#pin").value.trim();
-    if(WEB){try{const res=await fetch("/api/results",{headers:{"x-pin":v}});if(!res.ok)throw 0;const d=await res.json();trainerPin=v;attempts=(d.results||[]).map(a=>({...a,src:"db"}));trainerUnlocked=true;render()}catch(err){$("#pinMsg").textContent="That PIN is not correct."}return}
+    if(WEB){try{const res=await fetch("/api/results",{headers:{"x-pin":v}});if(!res.ok)throw 0;const d=await res.json();trainerPin=v;takeData(d);trainerUnlocked=true;tTab="results";render()}catch(err){$("#pinMsg").textContent="That PIN is not correct."}return}
     if(TRAINER_PIN&&v===TRAINER_PIN){trainerUnlocked=true;render()}else $("#pinMsg").textContent="That PIN is not correct.";return}
   if(t.dataset.tt){tTab=t.dataset.tt;render();return}
+  if(t.dataset.ap||t.dataset.unap){const id=t.dataset.ap||t.dataset.unap;t.disabled=true;try{const res=await fetch("/api/results/"+encodeURIComponent(id)+"/approve",{method:"POST",headers:{"x-pin":trainerPin,"content-type":"application/json"},body:JSON.stringify({approve:!!t.dataset.ap})});if(!res.ok)throw 0;await pollWeb();$("#tbody").innerHTML=resultsHTML()}catch(err){t.disabled=false;t.textContent="Try again"}return}
   if(t.id==="pdfClass"||t.dataset.pdf){const lbl=t.textContent;t.disabled=true;t.textContent="Preparing…";try{t.id==="pdfClass"?await pdfClass():await pdfStudent(t.dataset.pdf);t.textContent=lbl}catch(err){t.textContent="PDF failed, try again"}t.disabled=false;return}
   if(t.id==="impBtn"){try{const r=JSON.parse(decodeURIComponent(escape(atob($("#imp").value.trim()))));if(r.pct==null||!r.ksa)throw 0;r.id="code_"+r.name+"_"+r.submitted;r.src="code";imported.push(r);try{localStorage.setItem("dg41d_imported",JSON.stringify(imported))}catch(e){}$("#tbody").innerHTML=resultsHTML()}catch(err){$("#impMsg").textContent="That code is not valid. Ask the student to copy it again."}return}
-  if(t.dataset.del){if(!t.dataset.confirm){t.dataset.confirm="1";t.textContent="Tap to confirm";return}
+  if(t.dataset.del){if(!t.dataset.confirm){t.dataset.confirm="1";t.textContent="Tap again to delete for good";return}
     if(WEB){try{const res=await fetch("/api/results/"+encodeURIComponent(t.dataset.del),{method:"DELETE",headers:{"x-pin":trainerPin}});if(!res.ok)throw 0;attempts=attempts.filter(a=>a.id!==t.dataset.del);$("#tbody").innerHTML=resultsHTML()}catch(err){t.textContent="Could not remove"}return}
     try{await DB.doc("attempts/"+t.dataset.del).delete()}catch(err){t.textContent="Could not remove"}return}
 });
+document.addEventListener("input",e=>{if(mode!=="trainer")return;if(e.target.id==="fQ"){fQ=e.target.value;clearTimeout(window._fq);window._fq=setTimeout(()=>{const pos=e.target.selectionStart;$("#tbody").innerHTML=resultsHTML();const el=$("#fQ");if(el){el.focus();try{el.setSelectionRange(pos,pos)}catch(_){}}},250)}});
+document.addEventListener("change",async e=>{if(mode!=="trainer")return;
+  if(e.target.id==="fSt"){fSt=e.target.value;$("#tbody").innerHTML=resultsHTML();return}
+  if(e.target.id==="autoAp"){const on=e.target.checked;try{const res=await fetch("/api/settings",{method:"POST",headers:{"x-pin":trainerPin,"content-type":"application/json"},body:JSON.stringify({autoApprove:on})});if(!res.ok)throw 0;SETTINGS.autoApprove=on}catch(err){e.target.checked=!on}$("#tbody").innerHTML=resultsHTML()}});
 try{imported=JSON.parse(localStorage.getItem("dg41d_imported"))||[]}catch(e){imported=[]}
 
 
@@ -610,7 +664,7 @@ function coverPage(doc,a){
 function studentPage(doc,a){
   pdfHeader(doc,"CBTA Assessment Result");
   doc.autoTable({startY:33,theme:"plain",styles:{fontSize:10,cellPadding:1.5},columnStyles:{0:{fontStyle:"bold",cellWidth:42}},
-    body:[["Participant",a.name||""],["Job title",a.job||a.staff||""],["Company / Department",a.company||""],["Submitted",fdate(a.submitted)],["Time used",fmt(a.used||0)+" of 30:00"]]});
+    body:[["Participant",a.name||""],["Job title",a.job||a.staff||""],["Company / Department",a.company||""],["Submitted",fdate(a.submitted)],["Time used",fmt(a.used||0)+" of 30:00"],["Approval",(a.status==="approved"?"Approved"+(a.approvedAt?" on "+new Date(a.approvedAt).toLocaleDateString():""):"Waiting for approval")+(a.certNo?"  |  Certificate "+a.certNo:"")]]});
   let y=doc.lastAutoTable.finalY+6;
   const ok=a.competent;doc.setFillColor(...(ok?[227,243,232]:[251,229,227]));doc.roundedRect(14,y,182,18,2,2,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(...(ok?[29,122,62]:[179,38,30]));doc.text(a.grade||"",19,y+11.5);
