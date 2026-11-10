@@ -159,11 +159,12 @@ function band(p){return p>=DIST?"Distinction":p>=PASS?"Competent":p>=RESIT?"Re-s
 /* ---------- content ---------- */
 const STAGES=[
  {n:1,title:"Label check",mins:4,sub:"Identify the marks and labels on today's incoming packages."},
- {n:2,title:"Document check",mins:6,sub:"Check the Shipper's Declaration and Air Waybill. Flag every field that is wrong or missing."},
- {n:3,title:"Package inspection",mins:5,sub:"Inspect three packages at the counter and decide."},
- {n:4,title:"Hidden DG and load planning",mins:5,sub:"Screen general cargo descriptions and plan segregation."},
+ {n:2,title:"Document check",mins:5,sub:"Check the Shipper's Declaration and Air Waybill. Flag every field that is wrong or missing."},
+ {n:3,title:"Package inspection",mins:4,sub:"Inspect three packages at the counter and decide."},
+ {n:4,title:"Hidden DG and load planning",mins:4,sub:"Screen general cargo descriptions and plan segregation."},
  {n:5,title:"Pressure at the counter",mins:5,sub:"Real conversations. Choose what you would say or do."},
- {n:6,title:"Report and record",mins:4,sub:"Undeclared dangerous goods found. Report and keep records."}
+ {n:6,title:"Report and record",mins:4,sub:"Undeclared dangerous goods found. Report and keep records."},
+ {n:7,title:"Acceptance knowledge check",mins:4,sub:"Ten questions on what to check and what to do at acceptance."}
 ];
 const LABEL_OPTS=["Division 2.1 Flammable gas","Division 2.2 Non-flammable, non-toxic gas","Class 3 Flammable liquid","Division 5.1 Oxidizer","Class 8 Corrosive","Class 9 Miscellaneous","Limited quantity mark (by air)","Excepted quantity mark","Lithium battery mark","Cargo Aircraft Only label"];
 const LABELS=[
@@ -227,6 +228,21 @@ const MCQ={
  Q_36:{st:6,ksa:"K",pts:3,task:"3.3.3 / 2.5.4",ref:"CAR Part VI 5.3.14, 3.7.1",q:"How long must you keep the DGD, Air Waybill and acceptance checklist?",o:["3 months","12 months","At least 36 months","No need to keep them"],a:2},
  Q_VAR:{st:6,ksa:"K",pts:2,task:"3.1.4 / 3.2.5",ref:"DGR 2.8",q:"Where do you check if a State or the airline has extra rules?",o:["Back of the Air Waybill","State and Operator Variations (DGR 2.8)","The shipper's invoice","You do not need to check"],a:1}
 };
+
+/* stage 7: acceptance knowledge check (questions supplied by the trainer, 10 Nov 2026) */
+const KQ={
+ Q_K1:{task:"3.2.4",ref:"DGR 9.1.4, 9.4.1; CAR Part VI 5.3.9",q:"What should personnel do if a dangerous goods package is leaking during acceptance?",o:["Accept it with a warning label","Reject or isolate it safely and report according to procedures","Repack it without authorization","Load it immediately"],a:1},
+ Q_K2:{task:"3.1.1",ref:"DGR 8.1",q:"What must be checked when verifying a Shipper's Declaration for Dangerous Goods?",o:["Only the shipper's address","Only the freight charges","Required entries, accuracy and applicable regulatory requirements","Only the consignee's telephone number"],a:2},
+ Q_K3:{task:"3.2.1",ref:"DGR 7.2, 9.1.3",q:"What action is appropriate when a package has missing required hazard labels?",o:["Accept if the documentation is correct","Attach labels without authorization","Do not accept until the discrepancy is properly resolved","Ignore the discrepancy for domestic flights"],a:2},
+ Q_K4:{task:"3.1.2",ref:"DGR 8.1.1, 8.2",q:"What should be done if the air waybill indicates dangerous goods but no required Shipper's Declaration is available?",o:["Proceed because the air waybill is sufficient","Hold the consignment and verify documentation requirements","Remove the dangerous goods description","Ask the driver to sign the declaration"],a:1},
+ Q_K5:{task:"3.3.1",ref:"DGR 9.1.3",q:"What is the purpose of a dangerous goods acceptance checklist?",o:["To calculate cargo charges","To replace the Shipper's Declaration","To systematically verify compliance before acceptance","To record only the package weight"],a:2},
+ Q_K6:{task:"3.2.4",ref:"DGR 9.1.4; CAR Part VI 5.3.9",q:"A package has correct labels but visible damage. What should acceptance staff do?",o:["Accept because the labels are correct","Do not accept until the package condition is resolved","Cover the damaged area with tape","Ignore minor visible damage"],a:1},
+ Q_K7:{task:"3.1.4 / 3.2.5",ref:"DGR 2.8",q:"Why must State and operator variations be checked?",o:["They may impose additional or more restrictive requirements","They only affect passenger fares","They replace all ICAO requirements","They apply only to customs clearance"],a:0},
+ Q_K8:{task:"3.4.2 / 7.3",ref:"DGR 2.2; CAR Part VI 9.1.1",q:"What should personnel do if they suspect undeclared dangerous goods in general cargo?",o:["Accept it as ordinary cargo","Remove the suspicious items themselves","Stop processing and investigate or escalate under company procedures","Change the cargo description"],a:2},
+ Q_K9:{task:"3.3.1",ref:"DGR 9.1.3",q:"When accepting dangerous goods, which combination must be verified?",o:["Only package weight and destination","Documentation, packaging condition, markings, labels and applicable limitations","Only the air waybill number","Only the flight schedule"],a:1},
+ Q_K10:{task:"3.3.1",ref:"DGR 9.1.3",q:"What should an employee do when unsure whether a dangerous goods consignment complies?",o:["Use personal judgment and accept it","Ask the driver to decide","Hold acceptance and seek guidance from authorized personnel","Accept and check after departure"],a:2}
+};
+for(const [id,k] of Object.entries(KQ)) MCQ[id]={st:7,ksa:"K",pts:2,...k};
 /* attitude dialogues: c = critical (unsafe) choice */
 const DIALOG=[
  {id:"D1",task:"3.3.1",ref:"DGR 9.1.3; CAR Part VI 5.3.5",who:"Shipper",say:"The flight leaves in 90 minutes. The stamp is just paperwork. Accept it now and we will send the stamped copy tomorrow.",
@@ -250,7 +266,9 @@ SEG.forEach(g=>ITEMS.push({id:g.id,st:4,ksa:"S",pts:1,task:"4.1.2",ref:"DGR 9.3.
 DIALOG.forEach(d=>{const b=d.o.find(o=>o.p===4);ITEMS.push({id:d.id,st:5,ksa:"A",pts:4,task:d.task,ref:d.ref,what:d.who+": “"+d.say+"”",key:b.t,critical:d.o.filter(o=>o.c).map(o=>o.t)})});
 ITEMS.push({id:"ORD",st:6,ksa:"A",pts:5,task:"7.3",ref:"CAR Part VI 9.1.1; DGR 9.6",what:"Put the steps in order after finding undeclared DG (1 mark per correct position)",key:ORDER_STEPS.map((s,i)=>(i+1)+". "+s).join("  ")});
 ["Q_72","Q_RODGO","Q_36","Q_VAR"].forEach(id=>{const m=MCQ[id];ITEMS.push({id,st:6,ksa:m.ksa,pts:m.pts,task:m.task,ref:m.ref,what:m.q,key:m.o[m.a]})});
+Object.keys(KQ).forEach(id=>{const m=MCQ[id];ITEMS.push({id,st:7,ksa:m.ksa,pts:m.pts,task:m.task,ref:m.ref,what:m.q,key:m.o[m.a]})});
 const TOTAL=ITEMS.reduce((s,i)=>s+i.pts,0);
+const RMAX=a=>a.max||(a.items&&("Q_K1" in a.items)?TOTAL:100); // older records were out of 100
 const KSA_MAX={K:0,S:0,A:0}; ITEMS.forEach(i=>KSA_MAX[i.ksa]+=i.pts);
 
 /* ---------- state ---------- */
@@ -273,7 +291,7 @@ function score(){
   SEG.forEach(g=>it[g.id]=(S.ans[g.id]===(g.ans?"y":"n"))?1:0);
   DIALOG.forEach(d=>{const c=S.ans[d.id];const o=d.o[c];it[d.id]=o?o.p:0;if(o&&o.c)crit.push(d.id+": "+o.t)});
   it.ORD=S.order.reduce((s,v,i)=>s+(v===i?1:0),0);
-  const ksa={K:0,S:0,A:0}; const st={1:0,2:0,3:0,4:0,5:0,6:0};
+  const ksa={K:0,S:0,A:0}; const st={};STAGES.forEach(x=>st[x.n]=0);
   ITEMS.forEach(i=>{ksa[i.ksa]+=it[i.id]||0; st[i.st]+=it[i.id]||0});
   const total=Object.values(ksa).reduce((a,b)=>a+b,0);
   const pct=Math.round(total/TOTAL*100);
@@ -343,11 +361,11 @@ function renderStudent(){
   if(S.phase==="wait") return app.innerHTML=waitHTML();
   const st=STAGES[S.stage-1];
   app.innerHTML=`<div class="stack">
-   <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Stage ${st.n} of 6 · about ${st.mins} min</div><h2>${esc(st.title)}</h2><p class="muted">${esc(st.sub)}</p></div><div class="row">${["K","S","A"].filter(k=>ITEMS.some(i=>i.st===st.n&&i.ksa===k)).map(k=>`<span class="tag ${k}">${k==="K"?"Knowledge":k==="S"?"Skill":"Attitude"}</span>`).join("")}</div></div>
+   <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Stage ${st.n} of ${STAGES.length} · about ${st.mins} min</div><h2>${esc(st.title)}</h2><p class="muted">${esc(st.sub)}</p></div><div class="row">${["K","S","A"].filter(k=>ITEMS.some(i=>i.st===st.n&&i.ksa===k)).map(k=>`<span class="tag ${k}">${k==="K"?"Knowledge":k==="S"?"Skill":"Attitude"}</span>`).join("")}</div></div>
    <div class="card stack">${stageHTML(st.n)}</div>
    <div class="row" style="justify-content:space-between">
      <button class="btn" data-nav="-1" ${S.stage===1?"disabled":""}>Back</button>
-     ${S.stage<6?`<button class="btn primary" data-nav="1">Next stage</button>`:`<button class="btn primary" data-submit="1">Submit assessment</button>`}
+     ${S.stage<STAGES.length?`<button class="btn primary" data-nav="1">Next stage</button>`:`<button class="btn primary" data-submit="1">Submit assessment</button>`}
    </div></div>`;
 }
 function introHTML(){
@@ -358,13 +376,13 @@ function introHTML(){
    <div class="card stack instr"><h3>Instructions</h3>
     <ul class="plane">
      <li>Read and evaluate each question carefully before you answer. Look closely at every label, document and package picture.</li>
-     <li>Complete all 6 stages within the allocated 30 minutes. The timer starts when you press Start and cannot be paused. When time runs out, your answers are submitted automatically.</li>
+     <li>Complete all ${STAGES.length} stages within the allocated 30 minutes. The timer starts when you press Start and cannot be paused. When time runs out, your answers are submitted automatically.</li>
      <li>Work on your own. Do not use phones, notes, other people or other websites. Misconduct will result in disqualification.</li>
      <li>Answer as you would in real dangerous goods acceptance work, following GCAA CAR Part VI.</li>
      <li>Each question shows what it tests: <span class="tag K">K</span> Knowledge, <span class="tag S">S</span> Skill, <span class="tag A">A</span> Attitude.</li>
      <li>Always choose the safe action. An unsafe attitude choice means you cannot pass, whatever your score.</li>
      <li>You can go back to earlier stages. Review your answers prior to submission, because you cannot change them afterwards.</li>
-     <li>${TOTAL} marks in total. 90–100 Distinction, 80–89 Competent, 70–79 Re-sit, 0–69 Fail.</li>
+     <li>${TOTAL} marks in total. Your result is the percentage of marks: 90–100% Distinction, 80–89% Competent, 70–79% Re-sit, 0–69% Fail.</li>
      <li>If anything is unclear, ask the facilitator before you start.</li>
     </ul></div>
    <div class="card stack"><h3>Participant details</h3>
@@ -403,18 +421,19 @@ function stageHTML(n){
    <div class="stack" style="gap:8px">${SEG.map(g=>yn(g.id,`<b>${esc(g.a)}</b> and <b>${esc(g.b)}</b>`,"Segregate","No need")).join("")}</div>
    ${mcq("Q_LP")}`;
   if(n===5) return DIALOG.map(d=>`<div class="q"><div class="qhead"><div class="bubble"><b>${esc(d.who)}</b>${esc(d.say)}</div><div>${tag("A",d.task)}</div></div><div class="opts">${d.o.map((o,i)=>`<button class="opt ${S.ans[d.id]===i?"sel":""}" data-dlg="${d.id}" data-v="${i}"><span class="k">${"abcd"[i]}</span><span>${esc(o.t)}</span></button>`).join("")}</div></div>`).join("");
+  if(n===7) return `<p>Choose the best answer for each question.</p>${Object.keys(KQ).map(id=>mcq(id)).join("")}`;
   if(n===6) return `<div class="note">In a “machine parts” shipment you find a 5 L can of flammable solvent with no declaration. ${tag("A","7.3")}</div>
    <p><b>Put these steps in the right order.</b> Use the arrows.</p>
    <ol class="order">${S.order.map((s,i)=>`<li><span class="n">${i+1}</span><span class="t">${esc(ORDER_STEPS[s])}</span><button class="btn small" data-mv="${i}" data-d="-1" aria-label="Move up" ${i===0?"disabled":""}>↑</button><button class="btn small" data-mv="${i}" data-d="1" aria-label="Move down" ${i===4?"disabled":""}>↓</button></li>`).join("")}</ol>
    ${mcq("Q_72")}${mcq("Q_RODGO")}${mcq("Q_36")}${mcq("Q_VAR")}`;
 }
 function sheetHTML(a){
-  const bands=[["90-100","Distinction"],["80-89","Competent"],["70-79","Re-sit"],["0-69","Fail"]];const b=a.band||band(a.pct);
+  const bands=[["90-100%","Distinction"],["80-89%","Competent"],["70-79%","Re-sit"],["0-69%","Fail"]];const b=a.band||band(a.pct);
   return `<div class="sheet"><div class="top"><img src="${LOGO}" alt="Aviation Training Center logo"><div><div class="t1">Competency Based Training &amp; Assessment (CBTA)</div><div class="t1">Continuous Assessment (KSA)</div></div></div>
    <div class="t2">GCAA CAR Part VI - Table 4.1.D</div>
    <div class="tbl-wrap"><table><tbody><tr><td class="k">Participant Name</td><td>${esc(a.name)}</td></tr><tr><td class="k">Job Title</td><td>${esc(a.job||a.staff||"")}</td></tr><tr><td class="k">Company / Department</td><td>${esc(a.company||"")}</td></tr><tr><td class="k">Date Taken</td><td>${a.submitted?new Date(a.submitted).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"}):""}</td></tr></tbody></table></div>
-   <div class="tbl-wrap"><table><tbody><tr><td class="k">Instructor / Facilitator</td><td>${esc(a.facil||"")}</td><td class="k">Duration</td><td>30 minutes</td></tr><tr><td class="k">Total Marks</td><td>${TOTAL}</td><td class="k">Passing Marks</td><td>${PASS}</td></tr></tbody></table></div>
-   <div class="tbl-wrap"><table><thead><tr><td colspan="3" class="k" style="width:auto">For Official Use Only:</td></tr><tr><th class="r">Marks</th><th class="r">Result</th><th class="r">Marks Obtained</th></tr></thead><tbody>${bands.map(([m,r])=>`<tr class="${r===b?"hit":""}"><td style="text-align:center;font-weight:700">${m}</td><td style="text-align:center;font-weight:700">${r}</td><td style="text-align:center">${r===b?a.total+" / "+TOTAL+" ("+a.pct+"%)":""}</td></tr>`).join("")}<tr><td style="text-align:center;font-weight:700;background:#eaf0de">Attitude</td><td colspan="2" style="background:#eaf0de"><b>${esc(a.attitude||"")}</b> · Final result: <b>${esc(a.grade)}</b></td></tr></tbody></table></div>
+   <div class="tbl-wrap"><table><tbody><tr><td class="k">Instructor / Facilitator</td><td>${esc(a.facil||"")}</td><td class="k">Duration</td><td>30 minutes</td></tr><tr><td class="k">Total Marks</td><td>${RMAX(a)}</td><td class="k">Passing Marks</td><td>${PASS}% (${Math.ceil(RMAX(a)*PASS/100)} marks)</td></tr></tbody></table></div>
+   <div class="tbl-wrap"><table><thead><tr><td colspan="3" class="k" style="width:auto">For Official Use Only:</td></tr><tr><th class="r">Marks</th><th class="r">Result</th><th class="r">Marks Obtained</th></tr></thead><tbody>${bands.map(([m,r])=>`<tr class="${r===b?"hit":""}"><td style="text-align:center;font-weight:700">${m}</td><td style="text-align:center;font-weight:700">${r}</td><td style="text-align:center">${r===b?a.total+" / "+RMAX(a)+" ("+a.pct+"%)":""}</td></tr>`).join("")}<tr><td style="text-align:center;font-weight:700;background:#eaf0de">Attitude</td><td colspan="2" style="background:#eaf0de"><b>${esc(a.attitude||"")}</b> · Final result: <b>${esc(a.grade)}</b></td></tr></tbody></table></div>
    <div class="foot">${PROPRIETARY}</div></div>`;
 }
 function resultWebHTML(){
@@ -426,7 +445,7 @@ function resultWebHTML(){
    <div class="card stack"><h3>What happens next</h3>
     <p id="saveMsg">${saveMsg}</p>
     <p>Your trainer will review your result.${ok?" Your certificate is issued by the trainer after approval.":" Your trainer will talk to you about the next steps."}</p>
-    <p class="muted" style="font-size:13px">Results bands: 90–100 Distinction, 80–89 Competent, 70–79 Re-sit, 0–69 Fail.</p></div>
+    <p class="muted" style="font-size:13px">Results bands: 90–100% Distinction, 80–89% Competent, 70–79% Re-sit, 0–69% Fail.</p></div>
   </div>`;
 }
 function resultHTML(){
@@ -449,7 +468,7 @@ function resultHTML(){
   </div>`;
 }
 let saveMsg="Saving your result…",saveOk=false;
-function record(){const r=S.result;return {name:S.name,job:S.job,company:S.company,facil:S.facil,staff:S.job,band:r.band,attitude:r.attitude,start:S.start,submitted:r.at,used:r.used,total:r.total,pct:r.pct,ksa:r.ksa,st:r.st,crit:r.crit,grade:r.grade,competent:r.competent,items:r.items,wrongFlags:r.wrongFlags}}
+function record(){const r=S.result;return {max:TOTAL,name:S.name,job:S.job,company:S.company,facil:S.facil,staff:S.job,band:r.band,attitude:r.attitude,start:S.start,submitted:r.at,used:r.used,total:r.total,pct:r.pct,ksa:r.ksa,st:r.st,crit:r.crit,grade:r.grade,competent:r.competent,items:r.items,wrongFlags:r.wrongFlags}}
 function resultCode(){try{return btoa(unescape(encodeURIComponent(JSON.stringify(record()))))}catch(e){return ""}}
 async function saveResult(){
   if(WEB){if(!S.webId){S.webId="w"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);save()}
@@ -480,7 +499,7 @@ document.addEventListener("click",e=>{
   if(t.dataset.yn){S.ans[t.dataset.yn]=t.dataset.v;save();render();return}
   if(t.dataset.flag){S.flags[t.dataset.flag]=!S.flags[t.dataset.flag];save();render();return}
   if(t.dataset.mv){const i=+t.dataset.mv,j=i+ +t.dataset.d;[S.order[i],S.order[j]]=[S.order[j],S.order[i]];save();render();return}
-  if(t.dataset.nav){S.stage=Math.min(6,Math.max(1,S.stage+ +t.dataset.nav));save();render();ping();window.scrollTo(0,0);return}
+  if(t.dataset.nav){S.stage=Math.min(STAGES.length,Math.max(1,S.stage+ +t.dataset.nav));save();render();ping();window.scrollTo(0,0);return}
   if(t.dataset.submit){if(t.dataset.confirm){submit(false);return}t.dataset.confirm="1";t.textContent="Tap again to confirm submit";return}
   if(t.id==="restart"){if(!t.dataset.confirm){t.dataset.confirm="1";t.textContent="Tap again: this clears your answers";return}const keep={name:S.name,job:S.job,company:S.company,facil:S.facil};S=fresh();Object.assign(S,keep);saveMsg="Saving your result…";save();render();return}
   if(t.id==="myPdf"){const lbl=t.textContent;t.disabled=true;t.textContent="Preparing…";pdfStudent(null,{...record(),id:S.webId||"me"}).then(()=>{t.textContent=lbl;t.disabled=false}).catch(()=>{t.textContent="PDF failed, try again";t.disabled=false});return}
@@ -532,7 +551,7 @@ function trainerBody(){
    <div class="card stack"><h3>Links</h3><p>Student link: <span class="mono">${esc(ART_URL)}#student</span></p><p>Trainer link: <span class="mono">${esc(ART_URL)}#trainer</span> ${WEB?"(needs the trainer PIN)":`(PIN <span class="mono">${TRAINER_PIN}</span> for co-trainers who are not editors)`}</p><p class="muted" style="font-size:13px">${WEB?"Open the Dashboard tab to see who is taking the assessment now, approve results, and open saved mark lists and certificates. It refreshes every 10 seconds. Participants only see their result (Competent, Re-sit, Fail…), never marks or downloads.":"Share the page with students as <b>Contributor</b> so their results reach this view. Viewers and people outside your organization can still take it, then give you their result code."}</p></div>
    <div class="card stack"><h3>30-minute run sheet</h3><div class="tbl-wrap">${timeline()}</div>
     <div class="tbl-wrap"><table><thead><tr><th>Min</th><th>Stage</th><th>Assesses</th><th class="num">Marks</th></tr></thead><tbody>${(()=>{let m=1;return `<tr><td>0–1</td><td>Brief: role, rules, timer</td><td>—</td><td class="num">—</td></tr>`+STAGES.map(s=>{const a=m;m+=s.mins;const k=["K","S","A"].filter(x=>ITEMS.some(i=>i.st===s.n&&i.ksa===x));return `<tr><td>${a}–${m}</td><td><b>${s.n}. ${esc(s.title)}</b><br><span class="muted">${esc(s.sub)}</span></td><td>${k.map(x=>`<span class="tag ${x}">${x}</span>`).join(" ")}</td><td class="num">${STAGE_MAX[s.n]}</td></tr>`}).join("")})()}</tbody></table></div>
-    <p class="muted" style="font-size:13px">Bands (CAR Part VI Table 4.1.D distinction 90%): 90–100 Distinction, 80–89 Competent, 70–79 Re-sit, 0–69 Fail. Pass mark 80% (CAR Part VI Table 4.1.D). Any unsafe attitude choice in Stage 5 makes the attitude “Not acceptable” and the result “Re-sit”, whatever the score. Certificates are issued to Competent and Distinction results only. The employer sets the method, assessor and frequency (CAR Part VI 4.8). Function 7.3 (report undeclared or mis-declared DG, CAR Part VI 9.1.1, RODGO within 72 hours) is tested in Stages 5 and 6.</p></div>
+    <p class="muted" style="font-size:13px">Bands (CAR Part VI Table 4.1.D distinction 90%), as a percentage of ${TOTAL} marks: 90–100% Distinction, 80–89% Competent, 70–79% Re-sit, 0–69% Fail. Pass mark 80% (CAR Part VI Table 4.1.D). Any unsafe attitude choice in Stage 5 makes the attitude “Not acceptable” and the result “Re-sit”, whatever the score. Certificates are issued to Competent and Distinction results only. The employer sets the method, assessor and frequency (CAR Part VI 4.8). Function 7.3 (report undeclared or mis-declared DG, CAR Part VI 9.1.1, RODGO within 72 hours) is tested in Stages 5 and 6.</p></div>
    <div class="card stack"><h3>Marks by stage and KSA</h3><div class="legend"><span><i style="background:var(--k)"></i>Knowledge ${KSA_MAX.K}</span><span><i style="background:var(--s)"></i>Skill ${KSA_MAX.S}</span><span><i style="background:var(--a)"></i>Attitude ${KSA_MAX.A}</span></div><div class="tbl-wrap">${stackedStages()}</div></div></div>`;
   if(tTab==="key") return `<div class="card stack"><h3>Answer key and KSA map</h3><div class="tbl-wrap"><table><thead><tr><th>Stage</th><th>Item</th><th>Correct answer</th><th>KSA</th><th>Task</th><th>Reference</th><th class="num">Marks</th></tr></thead><tbody>${ITEMS.map(i=>`<tr><td>${i.st}</td><td>${esc(i.what)}</td><td>${esc(i.key)}${i.critical?`<br><span class="pill bad">Unsafe (fail)</span> <span class="muted" style="font-size:13px">${i.critical.map(esc).join(" · ")}</span>`:""}</td><td><span class="tag ${i.ksa}">${i.ksa}</span></td><td class="mono" style="font-size:12px">${esc(i.task)}</td><td style="font-size:13px">${esc(i.ref)}</td><td class="num">${i.pts||"−"}</td></tr>`).join("")}<tr><td></td><td><b>Total</b></td><td></td><td></td><td></td><td></td><td class="num"><b>${TOTAL}</b></td></tr></tbody></table></div></div>`;
   if(tTab==="observe") return `<div class="card stack"><h3>Assessor attitude observation</h3><p class="muted">Watch the student during the run and debrief. This sheet stays on your device only.</p><div class="tbl-wrap"><table><thead><tr><th>Observed behaviour</th><th>Acceptable</th><th>Not acceptable</th></tr></thead><tbody>${["Refuses a shipment when any checklist item fails, even under time or customer pressure.","Checks documents and packages against the DGR and CAR Part VI and does not guess.","Asks the shipper clear questions about hidden or undeclared dangerous goods.","Reports mis-declared or undeclared dangerous goods (RODGO, 72 hours) and follows procedures.","Keeps records true and complete; will not change a checklist on request."].map((b,i)=>`<tr><td>${b}</td><td><input type="radio" name="ob${i}" id="ob${i}a" aria-label="Acceptable"></td><td><input type="radio" name="ob${i}" id="ob${i}n" aria-label="Not acceptable"></td></tr>`).join("")}</tbody></table></div><p class="muted" style="font-size:13px">Debrief prompts: Why did you stop at Package C? What would you say to the supervisor in D4? Who gets the RODGO report and by when?</p></div>`;
@@ -552,7 +571,7 @@ function webDashHTML(){
    <div class="tiles"><div class="tile"><div class="muted">Waiting to start</div><div class="big">${waitingN}</div></div><div class="tile"><div class="muted">Taking it now</div><div class="big">${online.length}</div></div><div class="tile"><div class="muted">Submitted</div><div class="big">${n}</div></div><div class="tile"><div class="muted">Results to approve</div><div class="big">${pend}</div></div><div class="tile"><div class="muted">Approved</div><div class="big">${appr}</div></div><div class="tile"><div class="muted">Average score</div><div class="big">${avg}%</div></div></div>
    <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Approval</h3><label class="switch"><input type="checkbox" id="autoAp" ${SETTINGS.autoApprove?"checked":""}> Auto-approve new results</label></div>
     <p class="muted" style="font-size:13px">${SETTINGS.autoApprove?"Auto-approval is ON: every new result is approved as soon as it is submitted, and Competent / Distinction results get a certificate number straight away.":"Auto-approval is OFF: review each result below and press Approve. A certificate number is issued when you approve a Competent or Distinction result."} Participants never see marks or download anything; they only see their result.</p></div>
-   <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Participants: admit and follow live</h3>${waitingN?`<button class="btn primary small" id="admitAll">Admit all waiting (${waitingN})</button>`:""}</div><p class="muted" style="font-size:13px">Participants who log in wait here until you press Admit. Their 30 minutes start when you admit them.</p>${SESS.length?`<div class="tbl-wrap"><table><thead><tr><th>Participant</th><th>Stage</th><th class="num">Answered</th><th>Time left</th><th>Status</th></tr></thead><tbody>${SESS.sort((a,b)=>(b.waiting-a.waiting)||(b.lastSeen-a.lastSeen)).map(s=>{const on=NOW-s.lastSeen<120000;const who=`<td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:12px">${esc([s.job,s.company].filter(Boolean).join(" · "))}</span></td>`;if(s.waiting)return `<tr>${who}<td>Not started</td><td class="num">–</td><td class="mono">30:00</td><td>${on?`<button class="btn primary small" data-admit="${esc(s.id)}">Admit</button>`:`<span class="pill wait">Left the page</span>`}</td></tr>`;const left=s.start?DURATION-(NOW-s.start)/1000:DURATION;return `<tr>${who}<td>${s.stage} of 6 · ${esc(STAGES[s.stage-1]?.title||"")}</td><td class="num">${s.answered}</td><td class="mono">${left>0?fmt(left):"time up"}</td><td><span class="pill ${on?"ok":"wait"}">${on?"Online":"Inactive "+Math.round((NOW-s.lastSeen)/60000)+" min"}</span></td></tr>`}).join("")}</tbody></table></div>`:`<p class="muted">Nobody has logged in yet. Participants appear here as soon as they fill in their details and press Start.</p>`}</div>
+   <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Participants: admit and follow live</h3>${waitingN?`<button class="btn primary small" id="admitAll">Admit all waiting (${waitingN})</button>`:""}</div><p class="muted" style="font-size:13px">Participants who log in wait here until you press Admit. Their 30 minutes start when you admit them.</p>${SESS.length?`<div class="tbl-wrap"><table><thead><tr><th>Participant</th><th>Stage</th><th class="num">Answered</th><th>Time left</th><th>Status</th></tr></thead><tbody>${SESS.sort((a,b)=>(b.waiting-a.waiting)||(b.lastSeen-a.lastSeen)).map(s=>{const on=NOW-s.lastSeen<120000;const who=`<td><b>${esc(s.name)}</b><br><span class="muted" style="font-size:12px">${esc([s.job,s.company].filter(Boolean).join(" · "))}</span></td>`;if(s.waiting)return `<tr>${who}<td>Not started</td><td class="num">–</td><td class="mono">30:00</td><td>${on?`<button class="btn primary small" data-admit="${esc(s.id)}">Admit</button>`:`<span class="pill wait">Left the page</span>`}</td></tr>`;const left=s.start?DURATION-(NOW-s.start)/1000:DURATION;return `<tr>${who}<td>${s.stage} of ${STAGES.length} · ${esc(STAGES[s.stage-1]?.title||"")}</td><td class="num">${s.answered}</td><td class="mono">${left>0?fmt(left):"time up"}</td><td><span class="pill ${on?"ok":"wait"}">${on?"Online":"Inactive "+Math.round((NOW-s.lastSeen)/60000)+" min"}</span></td></tr>`}).join("")}</tbody></table></div>`:`<p class="muted">Nobody has logged in yet. Participants appear here as soon as they fill in their details and press Start.</p>`}</div>
    ${n?`<div class="grid2"><div class="card stack"><h3>Class average by KSA</h3>${hbars([["K","Knowledge"],["S","Skill"],["A","Attitude"]].map(([k,l])=>({label:l,value:ksaAvg(k),color:`var(--${k.toLowerCase()})`})))}</div>
     <div class="card stack"><h3>Results</h3>${hbars(["Distinction","Competent","Re-sit","Fail"].map(g=>{const c=A.filter(a=>a.grade===g).length;return {label:g,value:n?Math.round(c/n*100):0,color:g==="Distinction"||g==="Competent"?"var(--ok)":"var(--bad)",sub:c+" ("+(n?Math.round(c/n*100):0)+"%)"}}),{mark:null})}</div></div>`:""}
    <div class="card stack"><div class="row" style="justify-content:space-between"><h3>Mark lists and certificates (saved records)</h3>${n?`<button class="btn primary small" id="pdfClass">Download class results (PDF)</button>`:""}</div>
@@ -651,15 +670,15 @@ function coverPage(doc,a){
   doc.autoTable({...base,startY:60,columnStyles:{0:{fillColor:blue,fontStyle:"bold",cellWidth:55}},
     body:[["Participant Name",a.name||""],["Job Title",a.job||a.staff||""],["Company / Department",a.company||""],["Date Taken",a.submitted?new Date(a.submitted).toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"}):""]]});
   doc.autoTable({...base,startY:doc.lastAutoTable.finalY+5,columnStyles:{0:{fillColor:blue,fontStyle:"bold",cellWidth:55},1:{halign:"center"},2:{fillColor:blue,fontStyle:"bold",cellWidth:32},3:{halign:"center",cellWidth:38}},
-    body:[["Instructor / Facilitator",a.facil||"","Duration","30 minutes"],["Total Marks",String(TOTAL),"Passing Marks",String(PASS)]]});
-  const bands=[["90-100","Distinction"],["80-89","Competent"],["70-79","Re-sit"],["0-69","Fail"]];
+    body:[["Instructor / Facilitator",a.facil||"","Duration","30 minutes"],["Total Marks",String(RMAX(a)),"Passing Marks",PASS+"% ("+Math.ceil(RMAX(a)*PASS/100)+" marks)"]]});
+  const bands=[["90-100%","Distinction"],["80-89%","Competent"],["70-79%","Re-sit"],["0-69%","Fail"]];
   const b=a.band||band(a.pct);
   doc.autoTable({...base,startY:doc.lastAutoTable.finalY+5,
     head:[[{content:"For Official Use Only:",colSpan:3,styles:{fillColor:blue,textColor:[17,17,17],fontStyle:"bold"}}],
           [{content:"Marks",styles:{halign:"center"}},{content:"Result",styles:{halign:"center"}},{content:"Marks Obtained",styles:{halign:"center"}}]],
     headStyles:{fillColor:[242,242,242],textColor:[192,0,0],fontStyle:"bold",lineColor:line,lineWidth:.2},
     columnStyles:{0:{halign:"center",fontStyle:"bold",cellWidth:55},1:{halign:"center",fontStyle:"bold",cellWidth:55},2:{halign:"center"}},
-    body:[...bands.map(([m,r])=>[m,r,r===b?a.total+" / "+TOTAL+"  ("+a.pct+"%)":""]),["Attitude",{content:(a.attitude||(a.crit&&a.crit.length?"Not acceptable":"Acceptable"))+"   |   Final result: "+a.grade,colSpan:2}]],
+    body:[...bands.map(([m,r])=>[m,r,r===b?a.total+" / "+RMAX(a)+"  ("+a.pct+"%)":""]),["Attitude",{content:(a.attitude||(a.crit&&a.crit.length?"Not acceptable":"Acceptable"))+"   |   Final result: "+a.grade,colSpan:2}]],
     didParseCell:d=>{if(d.section!=="body")return;if(d.row.index<4&&bands[d.row.index][1]===b){d.cell.styles.fillColor=[255,243,205]}if(d.row.index===4){d.cell.styles.fillColor=[234,240,222];d.cell.styles.fontStyle="bold"}}});
 }
 function studentPage(doc,a){
@@ -669,7 +688,7 @@ function studentPage(doc,a){
   let y=doc.lastAutoTable.finalY+6;
   const ok=a.competent;doc.setFillColor(...(ok?[227,243,232]:[251,229,227]));doc.roundedRect(14,y,182,18,2,2,"F");
   doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(...(ok?[29,122,62]:[179,38,30]));doc.text(a.grade||"",19,y+11.5);
-  doc.setTextColor(0,0,0);doc.setFontSize(12);doc.text(a.total+" / "+TOTAL+" marks  ("+a.pct+"%)",191,y+11.5,{align:"right"});doc.setFont("helvetica","normal");
+  doc.setTextColor(0,0,0);doc.setFontSize(12);doc.text(a.total+" / "+RMAX(a)+" marks  ("+a.pct+"%)",191,y+11.5,{align:"right"});doc.setFont("helvetica","normal");
   y+=27;doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("Knowledge, Skill, Attitude",14,y);doc.setFont("helvetica","normal");
   y=pdfBars(doc,14,y+6,[["K","Knowledge",KC],["S","Skill",SC],["A","Attitude",AC]].map(([k,l,c])=>{const p=Math.round(a.ksa[k]/KSA_MAX[k]*100);return {label:l,pct:p,color:c,sub:a.ksa[k]+"/"+KSA_MAX[k]+"  ("+p+"%)"}}));
   doc.autoTable({startY:y+4,head:[["Stage","Marks","Max","%"]],headStyles:{fillColor:NAVY},styles:{fontSize:9},
