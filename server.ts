@@ -15,6 +15,7 @@ const PIN = Bun.env.TRAINER_PIN || "DG4D-2026";
 const VENDOR = new Set(["jspdf.umd.min.js", "jspdf.plugin.autotable.min.js"]);
 const CERT = await Bun.file(import.meta.dir + "/certificate.html").text();
 const PAGE = await Bun.file(import.meta.dir + "/index.html").text();
+const PAGE_4E = await Bun.file(import.meta.dir + "/index-4e.html").text();
 
 // ---- storage helpers (one JSON file per collection in the bucket) ----
 let chain: Promise<unknown> = Promise.resolve();
@@ -51,18 +52,31 @@ async function writeJSON(name: string, data: unknown) {
   }
   await s3.write(name, text, { type: "application/json" });
 }
-const readResults = (): Promise<Record<string, any>> => readJSON("results.json", {});
-const writeResults = (r: Record<string, any>) => writeJSON("results.json", r);
-let settingsCache: { autoApprove: boolean } | null = null;
-async function getSettings() {
-  if (!settingsCache) settingsCache = { autoApprove: false, ...(await readJSON("settings.json", {})) };
-  return settingsCache!;
+// One context per assessment table. 4.1.D keeps its original file names and /api paths.
+type Table = {
+  key: string; code: string; resultsFile: string; settingsFile: string;
+  settingsCache: { autoApprove: boolean } | null;
+  sessions: Map<string, any>; // live participants (in memory)
+  submitted: Set<string>; // ignore late heartbeats after a result arrives
+  admitted: Map<string, number>; // participant id -> time the trainer admitted them
+};
+const mkTable = (key: string, code: string, resultsFile: string, settingsFile: string): Table =>
+  ({ key, code, resultsFile, settingsFile, settingsCache: null, sessions: new Map(), submitted: new Set(), admitted: new Map() });
+const TABLES: Record<string, Table> = {
+  d: mkTable("d", "4.1.D", "results.json", "settings.json"),
+  e: mkTable("e", "4.1.E", "results-4e.json", "settings-4e.json"),
+};
+const readResults = (t: Table): Promise<Record<string, any>> => readJSON(t.resultsFile, {});
+const writeResults = (t: Table, r: Record<string, any>) => writeJSON(t.resultsFile, r);
+async function getSettings(t: Table) {
+  if (!t.settingsCache) t.settingsCache = { autoApprove: false, ...(await readJSON(t.settingsFile, {})) };
+  return t.settingsCache!;
 }
-
-// Live participants (in memory: only needed while people are taking the assessment)
-const sessions = new Map<string, any>();
-const submitted = new Set<string>(); // ignore late heartbeats after a result arrives
-const admitted = new Map<string, number>(); // participant id -> time the trainer admitted them
+const live = (t: Table, now = Date.now()) => {
+  let waiting = 0, online = 0;
+  for (const v of t.sessions.values()) if (now - v.lastSeen < 120_000) v.waiting ? waiting++ : online++;
+  return { waiting, online };
+};
 
 const certKey = (id: string) => createHmac("sha256", PIN).update(id).digest("hex").slice(0, 24);
 function certNo(r: any) {
@@ -86,7 +100,18 @@ Bun.serve({
   maxRequestBodySize: 2 * 1024 * 1024,
   async fetch(req) {
     const url = new URL(req.url);
-    const path = url.pathname;
+    let path = url.pathname;
+    // /api/4e/... = Table 4.1.E; /api/... = Table 4.1.D (unchanged)
+    let T = TABLES.d;
+    if (path.startsWith("/api/4e/")) { T = TABLES.e; path = "/api/" + path.slice("/api/4e/".length); }
+    const sessions = T.sessions, submitted = T.submitted, admitted = T.admitted;
+
+    // trainer: live counts for every table (for the 4.1.D / 4.1.E switch)
+    if (path === "/api/summary" && req.method === "GET") {
+      if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
+      const now = Date.now();
+      return json({ d: live(TABLES.d, now), e: live(TABLES.e, now) });
+    }
 
     // participant heartbeat while taking the assessment
     if (path === "/api/session" && req.method === "POST") {
@@ -116,14 +141,14 @@ Bun.serve({
       r.id = id;
       r.received = Date.now();
       delete r.status; delete r.approvedAt; delete r.approvedBy; delete r.certNo;
-      const settings = await getSettings();
+      const settings = await getSettings(T);
       await serial(async () => {
-        const all = await readResults();
+        const all = await readResults(T);
         if (all[id]?.status === "approved") return; // never overwrite an approved record
         r.status = "pending";
         if (settings.autoApprove) approve(r, "auto");
         all[id] = r;
-        await writeResults(all);
+        await writeResults(T, all);
       });
       submitted.add(id);
       sessions.delete(id);
@@ -132,7 +157,7 @@ Bun.serve({
 
     if (path === "/api/results" && req.method === "GET") {
       if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
-      const all = await readResults();
+      const all = await readResults(T);
       const now = Date.now();
       for (const [k, v] of sessions) if (now - v.lastSeen > 3 * 3600_000) sessions.delete(k);
       const results = Object.values(all).map((r: any) => ({
@@ -140,7 +165,7 @@ Bun.serve({
         status: r.status || "pending",
         certKey: r.status === "approved" && r.competent ? certKey(r.id) : undefined,
       }));
-      return json({ results, sessions: [...sessions.values()], settings: await getSettings(), now });
+      return json({ results, sessions: [...sessions.values()], settings: await getSettings(T), now, table: T.code });
     }
 
     // trainer admits waiting participants: {ids:[...]} or {all:true}
@@ -161,12 +186,12 @@ Bun.serve({
       try { b = JSON.parse(await req.text()); } catch {}
       const id = ap[1];
       const out = await serial(async () => {
-        const all = await readResults();
+        const all = await readResults(T);
         const r = all[id];
         if (!r) return null;
         if (b.approve === false) { r.status = "pending"; delete r.approvedAt; delete r.approvedBy; }
         else approve(r, "trainer");
-        await writeResults(all);
+        await writeResults(T, all);
         return r;
       });
       return out ? json({ ok: true, status: out.status }) : json({ error: "not found" }, 404);
@@ -176,9 +201,9 @@ Bun.serve({
       if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
       let b: any = {};
       try { b = JSON.parse(await req.text()); } catch {}
-      const s = await getSettings();
+      const s = await getSettings(T);
       s.autoApprove = !!b.autoApprove;
-      await writeJSON("settings.json", s);
+      await writeJSON(T.settingsFile, s);
       return json({ ok: true, settings: s });
     }
 
@@ -186,9 +211,9 @@ Bun.serve({
       if (!isTrainer(req)) return json({ error: "wrong pin" }, 403);
       const id = decodeURIComponent(path.slice("/api/results/".length));
       await serial(async () => {
-        const all = await readResults();
+        const all = await readResults(T);
         delete all[id];
-        await writeResults(all);
+        await writeResults(T, all);
       });
       return json({ ok: true });
     }
@@ -209,7 +234,8 @@ Bun.serve({
     if (req.method === "GET" && path === "/certificate") {
       const id = cleanId(url.searchParams.get("id"));
       const k = String(url.searchParams.get("k") || "");
-      const all = id && k === certKey(id) ? await readResults() : {};
+      const CT = url.searchParams.get("t") === "4e" ? TABLES.e : TABLES.d;
+      const all = id && k === certKey(id) ? await readResults(CT) : {};
       const r = all[id];
       if (!r || !r.competent || r.status !== "approved") {
         return new Response(
@@ -226,10 +252,13 @@ Bun.serve({
         assessor: String(r.facil || ""),
       });
       if (url.searchParams.get("download") === "1") qs.set("download", "1");
-      const html = CERT.replace("__CERTQS__", () => JSON.stringify(qs.toString()).replace(/</g, "\\u003c"));
+      const html = CERT.replaceAll("FIT4.1.D", "FIT" + CT.code).replace("__CERTQS__", () => JSON.stringify(qs.toString()).replace(/</g, "\\u003c"));
       return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
     }
 
+    if (req.method === "GET" && (path === "/4e" || path === "/4e/" || path === "/4.1e" || path === "/4.1E")) {
+      return new Response(PAGE_4E, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
+    }
     if (req.method === "GET") {
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" } });
     }
