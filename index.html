@@ -190,7 +190,7 @@ const DOC_FIELDS=[
  {id:"F5",form:"dgd",lab:"UN No. · Proper shipping name · Class · PG",v:"UN1263 · Paint · 3 · II",e:false},
  {id:"F6",form:"dgd",lab:"Quantity and type of packing · PI",v:"1 Fibreboard box × 4 L · PI 353",e:false},
  {id:"F7",form:"dgd",lab:"Signature (signed by forwarder for the shipper)",v:"Signed: R. Kumar, DG Acceptance — no company stamp",e:true,why:"A certified forwarder signing for the shipper must add the official company stamp.",task:"2.5.1 / 3.1.1",ref:"CAR Part VI 5.3.5"},
- {id:"F8",form:"awb",lab:"Handling Information (line 1)",v:"Dangerous Goods as per attached Shipper's Declaration",e:false},
+ {id:"F8",form:"awb",lab:"Handling Information (line 1)",v:"Dangerous Goods as per associated Shipper's Declaration",e:false},
  {id:"F9",form:"awb",lab:"Handling Information (line 2)",v:"— blank —",e:true,why:"“GCAA DGCERT #” and the certificate number (or stamp) are missing.",task:"2.5.2 / 3.1.2",ref:"CAR Part VI 5.3.6"},
  {id:"F10",form:"pack",lab:"Shipper's Undertaking for Correct Declaration of Goods",v:"Not attached",e:true,why:"Required for every UAE-originating air cargo consignment from 1 April 2025.",task:"3.1.3",ref:"CAR Part VI 3.11, 5.3.13"}
 ];
@@ -220,7 +220,7 @@ const ORDER_STEPS=[
 const ORDER_START=[2,4,1,0,3];
 /* multiple-choice items */
 const MCQ={
- Q_HI:{st:2,ksa:"K",pts:4,task:"3.1.2",ref:"DGR 8.2.1",q:"A shipment has a Shipper's Declaration. What must line 1 of the Air Waybill “Handling Information” say?",o:["“Urgent – priority handling”","“Dangerous Goods as per attached Shipper's Declaration” (or “as per attached DGD”)","“General cargo”","Nothing. The DGD is enough"],a:1},
+ Q_HI:{st:2,ksa:"K",pts:4,task:"3.1.2",ref:"DGR 8.2.1",q:"A shipment has a Shipper's Declaration. What must line 1 of the Air Waybill “Handling Information” say?",o:["“Urgent – priority handling”","“Dangerous Goods as per associated Shipper's Declaration” (or “as per associated DGD”)","“General cargo”","Nothing. The DGD is enough"],a:1},
  Q_4G:{st:3,ksa:"K",pts:2,task:"2.2.2 / 3.2.3",ref:"DGR 6.0.4, 6.1",q:"The box is marked 4G/Y29/S/12. What does “4G” mean?",o:["Steel drum","Fibreboard box","Wooden box","Plastic jerrican"],a:1},
  Q_Y:{st:3,ksa:"S",pts:3,task:"3.2.3",ref:"DGR 6.0.6",q:"The shipment is Paint, Packing Group II. Is this “Y” packaging allowed?",o:["No. “Y” is only for Packing Group I","Yes. “Y” is for Packing Groups II and III","Yes. “Y” is for all Packing Groups","Only with a CAO label"],a:1},
  Q_KG:{st:3,ksa:"S",pts:3,task:"3.2.3 / 3.3.1",ref:"DGR 6.0.6; 9.1.3",q:"The scale shows 32.5 kg gross. What do you decide?",o:["Accept. It is close enough","Do not accept. The gross mass is over the 29 kg on the UN mark","Accept as Cargo Aircraft Only","Remove some paint cans yourself, then accept"],a:1},
